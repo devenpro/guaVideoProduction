@@ -1,0 +1,158 @@
+{
+  "start": {
+    "mode": "advanced",
+    "raw_input": "Create a tutorial video showing how to use the AI Video Production Manager (VPM) tool. Walk viewers through the complete workflow from entering a video idea to publishing. Demonstrate the 7-stage Advanced mode: Start, Research, Blueprint, Script, Studio, Clips, and Publish. Show how AI assists at every step. Target audience is content creators and marketing teams who want to streamline their video production. About 10 minutes, YouTube format.",
+    "preferences": {
+      "language": "english",
+      "audio_mode": "ai-generated",
+      "platform": "youtube",
+      "aspect_ratio": "16:9",
+      "target_duration": 600,
+      "production_mode": "full-ai",
+      "presenter_preference": "ai-only"
+    },
+    "llm_response": "",
+    "processed": true,
+    "processed_at": "2026-03-22T10:00:00.000Z"
+  },
+  "video": {
+    "title": "How to Use the AI Video Production Manager \u2014 Complete Tutorial (2026)",
+    "description": "A step-by-step tutorial showing how to plan, script, and produce professional videos using VPM\u2019s AI-powered 7-stage workflow.",
+    "target_audience": "Content creators, marketing teams, YouTubers, and agencies who produce regular video content",
+    "tone": "friendly",
+    "language": "english",
+    "platform": "youtube",
+    "aspect_ratio": "16:9",
+    "duration_target": 600,
+    "production_mode": "full-ai",
+    "presenter_preference": "ai-only",
+    "keywords": ["video production", "AI tools", "VPM tutorial", "content creation", "workflow automation"],
+    "created": "2026-03-22T10:00:00.000Z",
+    "modified": "2026-03-22T16:30:00.000Z"
+  },
+  "research": {
+    "audience_insights": "Primary audience is content creators aged 25\u201345 who publish 2\u20138 videos per month. They struggle with the time between idea and finished video. Most use 5+ separate tools. Key pain: context-switching. They search for 'video production workflow' and 'AI video tools'. High willingness to try new tools if onboarding is clear.",
+    "competitor_analysis": "Existing tutorials for Descript, Kapwing, InVideo get 100K\u2013500K views. Most show surface-level UI walkthroughs. Gap: no competitor shows true end-to-end AI-assisted workflow from idea to published video. Opportunity: show VPM\u2019s unique 7-stage pipeline.",
+    "trending_angles": "'AI video workflow' queries up 280% in 2026. Creators moving from 'AI will replace us' to 'AI as co-pilot'. Behind-the-scenes process videos outperform product demos 3:1. The 'one-click video' narrative is trending but unrealistic \u2014 VPM\u2019s guided workflow is more credible.",
+    "content_strategy": "Structure: Hook showing finished video first \u2192 7 sections matching 7 stages \u2192 Recap with time comparison. Each section: name the pain, show VPM solving it, highlight AI assist. Screen-style visuals throughout. End with clear CTA.",
+    "sources": [
+      {"url": "https://youtube.com/watch?v=competitor1", "type": "competitor", "title": "Descript Tutorial (450K views)", "notes": "Good pacing, only covers editing"},
+      {"url": "https://blog.hubspot.com/video-2026", "type": "reference", "title": "HubSpot: Video Trends 2026", "notes": "280% growth stat"},
+      {"url": "https://youtube.com/watch?v=ai_workflow", "type": "competitor", "title": "My AI Workflow (1.2M views)", "notes": "Uses 6 separate tools"}
+    ],
+    "generated": true,
+    "generated_at": "2026-03-22T10:15:00.000Z"
+  },
+  "blueprint": {
+    "title": "How to Use the AI Video Production Manager \u2014 Complete Tutorial",
+    "description": "Step-by-step walkthrough of VPM\u2019s 7-stage Advanced workflow",
+    "sections": [
+      {"id": "sec_hook", "label": "Hook \u2014 The Result First", "duration": 30, "key_points": ["Show finished video", "Tease: made with AI", "Promise the workflow"], "visual_notes": "Montage of final product + VPM UI", "order": 1},
+      {"id": "sec_start", "label": "Stage 1: Start", "duration": 60, "key_points": ["Enter idea", "Set preferences", "AI analyzes"], "visual_notes": "Screen recording of Start", "order": 2},
+      {"id": "sec_research", "label": "Stage 2: Research", "duration": 70, "key_points": ["4 AI panels", "Edit and add sources"], "visual_notes": "Research panels filling", "order": 3},
+      {"id": "sec_blueprint", "label": "Stage 3: Blueprint", "duration": 70, "key_points": ["Define sections", "AI generates structure", "Confirm to create script"], "visual_notes": "Blueprint editor", "order": 4},
+      {"id": "sec_script", "label": "Stage 4: Script", "duration": 80, "key_points": ["AI generates full script", "Enhance sections", "Version history", "Finalize"], "visual_notes": "Script Tiptap editors", "order": 5},
+      {"id": "sec_studio", "label": "Stage 5: Studio", "duration": 70, "key_points": ["Looks and environments", "Scene composition", "AI auto-generate"], "visual_notes": "Studio entity cards", "order": 6},
+      {"id": "sec_clips", "label": "Stage 6: Clips", "duration": 80, "key_points": ["AI clip breakdown", "3 tracks", "REVP pipeline"], "visual_notes": "Split layout demo", "order": 7},
+      {"id": "sec_publish", "label": "Stage 7: Publish", "duration": 70, "key_points": ["AI metadata", "Thumbnail workshop", "Multi-platform export"], "visual_notes": "Publishing panels", "order": 8},
+      {"id": "sec_recap", "label": "Recap \u2014 Manual vs AI", "duration": 70, "key_points": ["8 hours \u2192 45 minutes", "AI as co-pilot", "CTA"], "visual_notes": "Comparison + CTA", "order": 9}
+    ],
+    "style_notes": "Screen-recording style with AI presenter transitions. Blue/purple accent.",
+    "tone": "friendly",
+    "target_audience": "Content creators and marketing teams",
+    "confirmed": true,
+    "confirmed_at": "2026-03-22T10:30:00.000Z"
+  },
+  "script": {
+    "sections": [
+      {"id": "sec_hook", "label": "Hook \u2014 The Result First", "order": 1, "content": "<p>This video you\u2019re watching right now? It was planned, scripted, and produced using AI \u2014 and it took less than an hour from idea to export.</p><p>In the next 10 minutes, I\u2019m going to show you the exact tool and workflow that made this possible. It\u2019s called the AI Video Production Manager, and it turns a simple text idea into a fully planned, scripted, and production-ready video.</p>", "word_count": 70, "estimated_duration": 28, "notes": "Meta hook \u2014 this video was made with the tool."},
+      {"id": "sec_start", "label": "Stage 1: Start", "order": 2, "content": "<p>Everything begins in the Start stage. You type your video idea in plain language. Then set your preferences: platform, duration, production style.</p><p>Hit \u201cAnalyze & Continue\u201d and the AI reads your idea, figures out the best tone, suggests sections, and pre-fills your blueprint. You described a video in one paragraph, and the AI turned it into a production plan.</p><p>Choose Standard mode for 5 stages, or Advanced for 7 stages with Research and Studio.</p>", "word_count": 80, "estimated_duration": 32, "notes": "Show Start page, type idea, click Analyze."},
+      {"id": "sec_research", "label": "Stage 2: Research", "order": 3, "content": "<p>In Advanced mode, Research is where AI does your homework. Click one button and get four panels: audience insights, competitor analysis, trending angles, and content strategy.</p><p>You can edit any panel, regenerate individual sections, and add your own reference sources. Think of it as a research assistant that works in 30 seconds.</p>", "word_count": 55, "estimated_duration": 22, "notes": "Show research panels generating, edit one."},
+      {"id": "sec_blueprint", "label": "Stage 3: Blueprint", "order": 4, "content": "<p>The Blueprint is where your video gets structure. Define sections with labels, durations, and key points.</p><p>Click \u201cGenerate Blueprint\u201d for AI to create a complete structure. When happy, hit \u201cConfirm\u201d \u2014 this auto-creates matching script sections.</p>", "word_count": 42, "estimated_duration": 17, "notes": "Show section editing, confirm flow."},
+      {"id": "sec_script", "label": "Stage 4: Script", "order": 5, "content": "<p>Click \u201cAI Generate\u201d to create a complete script from your blueprint. The AI writes content for every section, matching your tone. Edit directly, or enhance individual sections with AI.</p><p>The stats bar shows word count and estimated duration. When satisfied, Finalize to lock the script and save a version.</p>", "word_count": 52, "estimated_duration": 21, "notes": "Show AI generation, enhance, finalize."},
+      {"id": "sec_studio", "label": "Stage 5: Studio", "order": 6, "content": "<p>Studio is where visual identity comes together. Create Looks (characters), Environments (locations), and Scenes (combinations with camera direction).</p><p>Click \u201cAI Analyze\u201d to auto-suggest visual elements from your script. Scenes become reusable templates for clip frames.</p>", "word_count": 42, "estimated_duration": 17, "notes": "Show entity creation, scene composition."},
+      {"id": "sec_clips", "label": "Stage 6: Clips", "order": 7, "content": "<p>\u201cGenerate from Script\u201d creates a complete clip breakdown. Each clip has a type: AI Visual, Screen Recording, or Template. Three tracks: AI clips get full prompts, Non-AI get briefs, Templates auto-apply.</p><p>For AI clips, generate frame prompts and video prompts. The split layout shows your list and detail panel side by side.</p>", "word_count": 56, "estimated_duration": 22, "notes": "Show generation, split layout, prompt tabs."},
+      {"id": "sec_publish", "label": "Stage 7: Publish", "order": 8, "content": "<p>\u201cGenerate Metadata\u201d creates YouTube titles, descriptions, tags, and chapters from your content. The Thumbnail Workshop generates 4 concepts you can refine through AI chat.</p><p>VPM also generates captions for Instagram, TikTok, and LinkedIn. Export your script, shot list, and prompt library as files.</p>", "word_count": 50, "estimated_duration": 20, "notes": "Show metadata, thumbnails, exports."},
+      {"id": "sec_recap", "label": "Recap", "order": 9, "content": "<p>Traditional workflow: 8 hours minimum. With VPM: 45 minutes. Not replacing you \u2014 amplifying you. Every stage has AI, but you control every step.</p><p>Try VPM \u2014 link in description. Subscribe for more AI content creation tutorials.</p>", "word_count": 40, "estimated_duration": 16, "notes": "Time comparison, CTA."}
+    ],
+    "total_word_count": 487,
+    "estimated_duration": 195,
+    "finalized": true,
+    "finalized_at": "2026-03-22T12:00:00.000Z",
+    "versions": [
+      {"id": "ver_01", "timestamp": "2026-03-22T11:00:00.000Z", "label": "v1 \u2014 AI Generated", "total_word_count": 420, "snapshot": null},
+      {"id": "ver_02", "timestamp": "2026-03-22T12:00:00.000Z", "label": "v2 \u2014 Finalized", "total_word_count": 487, "snapshot": null}
+    ]
+  },
+  "clips": [
+    {"id":"clip_01","order":1,"title":"Hook Montage","type":"ai-visual","section":"sec_hook","track":"ai","script_text":"This video was planned, scripted, and produced using AI.","onscreen_text":"Made with AI","visual_direction":"VPM interface montage","duration":8,"timing":{"start":0,"end":8},"status":"scene-set","production_config":{"motion_strength":"high","camera_movement":"dynamic-cuts","transition_style":"smooth-dissolve"},"prompt_set":{"requires_last_frame":false,"first_frame":{"scene":{"look_ids":[],"environment_id":"env_vpm_ui","scene_template_id":"","scene_notes":""},"prompt":{"status":"generated","positive":"Modern SaaS dashboard montage, video production workflow screens, blue-purple UI, professional, 16:9","negative":"blurry, low quality","style_keywords":["tech","saas"],"parameters":{"aspect_ratio":"16:9"},"generated_at":"2026-03-22T13:00:00.000Z"},"image_url":"","marked_done":false,"done_at":null,"version":0},"last_frame":null,"video":{"prompt":{"status":"empty","positive":"","negative":"","motion":""},"marked_done":false}}},
+    {"id":"clip_02","order":2,"title":"Title Card","type":"branded-intro","section":"sec_hook","track":"template","script_text":"","onscreen_text":"VPM \u2014 Complete Tutorial","duration":4,"timing":{"start":8,"end":12},"status":"applied","template_id":"tpl_intro","production_config":{},"prompt_set":null},
+    {"id":"clip_03","order":3,"title":"Ch: Start","type":"chapter-title","section":"sec_start","track":"template","script_text":"","onscreen_text":"Stage 1: Start","duration":3,"timing":{"start":12,"end":15},"status":"applied","template_id":"tpl_chapter","production_config":{},"prompt_set":null},
+    {"id":"clip_04","order":4,"title":"Start Demo","type":"screen-recording","section":"sec_start","track":"non-ai","script_text":"Type your idea, set preferences, click Analyze.","duration":30,"timing":{"start":15,"end":45},"status":"planned","production_config":{},"non_ai_planning":{"brief":"Record VPM Start stage: type idea, select prefs, click Analyze, show AI pre-fill.","instructions":"1. Show empty Start\n2. Type idea\n3. Set preferences\n4. Click Analyze\n5. Show success toast","recording_ref":"","marked_done":false},"prompt_set":null},
+    {"id":"clip_05","order":5,"title":"Ch: Research","type":"chapter-title","section":"sec_research","track":"template","script_text":"","onscreen_text":"Stage 2: Research","duration":3,"timing":{"start":45,"end":48},"status":"applied","template_id":"tpl_chapter","production_config":{},"prompt_set":null},
+    {"id":"clip_06","order":6,"title":"Research Demo","type":"screen-recording","section":"sec_research","track":"non-ai","script_text":"One button, four research panels.","duration":25,"timing":{"start":48,"end":73},"status":"planned","production_config":{},"non_ai_planning":{"brief":"Show Research: Generate, panels fill, edit one, add source.","instructions":"1. Click Generate Research\n2. Show panels filling\n3. Edit Audience panel\n4. Add a source","recording_ref":"","marked_done":false},"prompt_set":null},
+    {"id":"clip_07","order":7,"title":"Ch: Blueprint","type":"chapter-title","section":"sec_blueprint","track":"template","script_text":"","onscreen_text":"Stage 3: Blueprint","duration":3,"timing":{"start":73,"end":76},"status":"applied","template_id":"tpl_chapter","production_config":{},"prompt_set":null},
+    {"id":"clip_08","order":8,"title":"Blueprint Demo","type":"screen-recording","section":"sec_blueprint","track":"non-ai","script_text":"Define sections, confirm to create script.","duration":25,"timing":{"start":76,"end":101},"status":"planned","production_config":{},"non_ai_planning":{"brief":"Show Blueprint: sections, duration bar, Confirm Blueprint.","instructions":"1. Show sections\n2. Adjust a label\n3. Click Confirm\n4. Show script creation toast","recording_ref":"","marked_done":false},"prompt_set":null},
+    {"id":"clip_09","order":9,"title":"Ch: Script","type":"chapter-title","section":"sec_script","track":"template","script_text":"","onscreen_text":"Stage 4: Script","duration":3,"timing":{"start":101,"end":104},"status":"applied","template_id":"tpl_chapter","production_config":{},"prompt_set":null},
+    {"id":"clip_10","order":10,"title":"Script Demo","type":"screen-recording","section":"sec_script","track":"non-ai","script_text":"AI generates, enhance, finalize.","duration":30,"timing":{"start":104,"end":134},"status":"planned","production_config":{},"non_ai_planning":{"brief":"Show Script: AI Generate, enhance a section, finalize.","instructions":"1. Show empty sections\n2. Click AI Generate\n3. Show content appearing\n4. Enhance one section\n5. Click Finalize","recording_ref":"","marked_done":false},"prompt_set":null},
+    {"id":"clip_11","order":11,"title":"Ch: Studio","type":"chapter-title","section":"sec_studio","track":"template","script_text":"","onscreen_text":"Stage 5: Studio","duration":3,"timing":{"start":134,"end":137},"status":"applied","template_id":"tpl_chapter","production_config":{},"prompt_set":null},
+    {"id":"clip_12","order":12,"title":"Studio Visual","type":"ai-visual","section":"sec_studio","track":"ai","script_text":"Visual identity comes together here.","duration":8,"timing":{"start":137,"end":145},"status":"draft","production_config":{"motion_strength":"low","camera_movement":"slow-pan"},"prompt_set":{"requires_last_frame":false,"first_frame":{"scene":{"look_ids":["look_presenter"],"environment_id":"env_vpm_ui"},"prompt":{"status":"empty","positive":"","negative":"","style_keywords":[],"parameters":{}},"image_url":"","marked_done":false,"done_at":null,"version":0},"last_frame":null,"video":{"prompt":{"status":"empty","positive":"","negative":"","motion":""},"marked_done":false}}},
+    {"id":"clip_13","order":13,"title":"Ch: Clips","type":"chapter-title","section":"sec_clips","track":"template","script_text":"","onscreen_text":"Stage 6: Clips","duration":3,"timing":{"start":145,"end":148},"status":"applied","template_id":"tpl_chapter","production_config":{},"prompt_set":null},
+    {"id":"clip_14","order":14,"title":"Clips Demo","type":"screen-recording","section":"sec_clips","track":"non-ai","script_text":"Generate clips, explore the split layout.","duration":35,"timing":{"start":148,"end":183},"status":"planned","production_config":{},"non_ai_planning":{"brief":"Show Clips: generate, split layout, frame prompts, video tab.","instructions":"1. Generate from Script\n2. Click through tracks\n3. Select AI clip\n4. Generate frame prompt\n5. Show video tab","recording_ref":"","marked_done":false},"prompt_set":null},
+    {"id":"clip_15","order":15,"title":"Ch: Publish","type":"chapter-title","section":"sec_publish","track":"template","script_text":"","onscreen_text":"Stage 7: Publish","duration":3,"timing":{"start":183,"end":186},"status":"applied","template_id":"tpl_chapter","production_config":{},"prompt_set":null},
+    {"id":"clip_16","order":16,"title":"Publish Demo","type":"screen-recording","section":"sec_publish","track":"non-ai","script_text":"Generate metadata, thumbnails, export.","duration":30,"timing":{"start":186,"end":216},"status":"planned","production_config":{},"non_ai_planning":{"brief":"Show Publish: metadata, thumbnails, exports.","instructions":"1. Generate Metadata\n2. Show title alternatives\n3. Open Thumbnail Workshop\n4. Generate ideas, refine, finalize\n5. Show export grid","recording_ref":"","marked_done":false},"prompt_set":null},
+    {"id":"clip_17","order":17,"title":"Time Comparison","type":"ai-visual","section":"sec_recap","track":"ai","script_text":"8 hours vs 45 minutes.","onscreen_text":"8 hrs \u2192 45 min","duration":8,"timing":{"start":216,"end":224},"status":"draft","production_config":{"motion_strength":"medium","camera_movement":"slow-zoom"},"prompt_set":{"requires_last_frame":false,"first_frame":{"scene":{"look_ids":[],"environment_id":"env_clean_bg"},"prompt":{"status":"empty","positive":"","negative":"","style_keywords":[],"parameters":{}},"image_url":"","marked_done":false,"done_at":null,"version":0},"last_frame":null,"video":{"prompt":{"status":"empty","positive":"","negative":"","motion":""},"marked_done":false}}},
+    {"id":"clip_18","order":18,"title":"End Screen","type":"branded-outro","section":"sec_recap","track":"template","script_text":"","onscreen_text":"Try VPM \u00B7 Subscribe","duration":8,"timing":{"start":224,"end":232},"status":"applied","template_id":"tpl_outro","production_config":{},"prompt_set":null}
+  ],
+  "publishing": {
+    "youtube": {
+      "title": "How to Use the AI Video Production Manager \u2014 Complete Tutorial (2026)",
+      "title_options": ["I Made This Video with AI in 45 Minutes \u2014 Here\u2019s How", "AI Video Production Manager: 7 Stages, 1 Tool", "The AI Workflow That Replaces 6 Video Tools"],
+      "description": "Step-by-step tutorial for VPM\u2019s 7-stage AI workflow.\n\n\u23f1 Chapters:\n0:00 Hook\n0:12 Stage 1: Start\n0:45 Stage 2: Research\n1:16 Stage 3: Blueprint\n1:41 Stage 4: Script\n2:17 Stage 5: Studio\n2:25 Stage 6: Clips\n3:03 Stage 7: Publish\n3:36 Recap\n\n#VPM #AIVideo #Tutorial",
+      "tags": ["VPM", "AI video", "tutorial", "content creation", "video workflow", "AI tools"],
+      "hashtags": ["#VPM", "#AIVideo", "#Tutorial", "#ContentCreation"],
+      "chapters": [
+        {"time": "0:00", "label": "Hook"},
+        {"time": "0:12", "label": "Stage 1: Start"},
+        {"time": "0:45", "label": "Stage 2: Research"},
+        {"time": "1:16", "label": "Stage 3: Blueprint"},
+        {"time": "1:41", "label": "Stage 4: Script"},
+        {"time": "2:17", "label": "Stage 5: Studio"},
+        {"time": "2:25", "label": "Stage 6: Clips"},
+        {"time": "3:03", "label": "Stage 7: Publish"},
+        {"time": "3:36", "label": "Recap"}
+      ],
+      "category": "education",
+      "visibility": "public"
+    },
+    "instagram": {"caption": "Made a tutorial in 45 min with AI \u2014 7 stages, zero stress \ud83d\ude80", "hashtags": ["#AIVideo", "#ContentCreation", "#Tutorial"]},
+    "tiktok": {"caption": "POV: 10-min video, 45 minutes, all AI \ud83e\udd2f #AIVideo #Tutorial #fyp", "hashtags": ["#AIVideo", "#Tutorial", "#fyp"]},
+    "linkedin": {"post_text": "Built a complete tutorial using an AI production workflow in 45 minutes. The 7-stage pipeline handles research, scripting, clips, and SEO. Full walkthrough on YouTube."},
+    "export_history": []
+  },
+  "thumbnails": {
+    "ideas": [
+      {"id": "thumb_01", "title": "Before/After Split", "desc": "Left: chaotic multi-app desktop. Right: clean VPM with green checkmarks.", "text": "45 min vs 8 hours", "subtext": "AI Workflow", "colors": "blue-purple", "mood": "dramatic", "layout": "split", "score": 91},
+      {"id": "thumb_02", "title": "7-Stage Pipeline", "desc": "7 connected glowing stage icons from Start to Publish.", "text": "7 Stages, 1 Tool", "subtext": "Tutorial", "colors": "dark, neon blue", "mood": "tech", "layout": "center", "score": 87},
+      {"id": "thumb_03", "title": "AI Sparkle", "desc": "VPM screenshot with sparkle effects around Script stage.", "text": "AI Makes Your Video", "subtext": "", "colors": "purple sparkles", "mood": "energetic", "layout": "rule-of-thirds", "score": 84},
+      {"id": "thumb_04", "title": "Timer", "desc": "Stopwatch at 00:45 with VPM dashboard behind it.", "text": "Full Video in 45 Min", "subtext": "AI-Powered", "colors": "green on dark blue", "mood": "urgent", "layout": "center", "score": 89}
+    ],
+    "selected_idea_id": "thumb_01",
+    "chat_history": [
+      {"role": "system", "text": "Developing: Before/After Split", "timestamp": "2026-03-22T15:00:00.000Z"},
+      {"role": "user", "text": "More chaos on the left, show VPM sidebar with green checks on the right.", "timestamp": "2026-03-22T15:01:00.000Z"},
+      {"role": "assistant", "text": "Updated: 8+ overlapping windows on left, VPM sidebar with all 7 green checks on right, larger time text.", "timestamp": "2026-03-22T15:01:30.000Z"}
+    ],
+    "finalized_prompt": {
+      "positive": "YouTube thumbnail split screen. Left: chaotic desktop with 8 app windows, stressed creator. Right: clean VPM with 7 green-checked stages. Text '45 min vs 8 hours' center, red-to-green gradient. High contrast, professional.",
+      "negative": "blurry, cluttered text, cartoon",
+      "style_keywords": ["youtube-thumbnail", "split-screen", "before-after"],
+      "parameters": {"width": 1280, "height": 720, "quality": "ultra"},
+      "text_overlays": [{"text": "45 min", "position": "center-right", "color": "#22c55e"}, {"text": "vs 8 hours", "position": "center-left", "color": "#ef4444"}],
+      "composition": "split",
+      "brand_alignment": {"colors_used": "blue, purple, green, red", "mood": "dramatic"},
+      "metadata": {"generated_at": "2026-03-22T15:02:00.000Z", "source_idea": "thumb_01", "chat_turns": 3}
+    },
+    "generated_at": "2026-03-22T15:02:00.000Z"
+  }
+}

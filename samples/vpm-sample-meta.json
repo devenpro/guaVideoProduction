@@ -1,0 +1,136 @@
+{
+  "settings": {
+    "words_per_minute": 150,
+    "default_clip_duration": 8,
+    "default_clip_type": "ai-visual",
+    "default_language": "english",
+    "default_tone": "friendly",
+    "default_aspect_ratio": "16:9",
+    "default_platform": "youtube",
+    "default_production_mode": "full-ai",
+    "default_presenter": "ai-only",
+    "default_audio_mode": "ai-generated",
+    "show_ai_preflight": true,
+    "ai_global_instructions": "This is a tutorial about a video production tool. Keep language clear and practical. Avoid jargon. Focus on showing the value of each feature through the lens of time savings.",
+    "strict_ai_duration": true,
+    "snap_to_model_durations": true,
+    "video_model_overrides": {},
+    "app_version": "1.0.0"
+  },
+  "aiPreferences": {
+    "appDefault": {"provider": "gemini", "model": "gemini-2.5-flash"},
+    "lastProvider": "gemini",
+    "lastModel": "gemini-2.5-flash",
+    "imageModel": "imagen-3",
+    "videoModel": "google-veo-3.1",
+    "globalNegative": "watermark, text overlay, logo, low quality, blurry, distorted, cartoon, anime",
+    "perAction": {
+      "generate-script": {"provider": "gemini", "model": "gemini-2.5-pro"},
+      "generate-clips": {"provider": "gemini", "model": "gemini-2.5-pro"},
+      "generate-research": {"provider": "gemini", "model": "gemini-2.5-flash"},
+      "generate-metadata": {"provider": "gemini", "model": "gemini-2.5-flash"}
+    },
+    "lastCustomInstructions": {
+      "generate-script": "Each stage section should follow: what it does, show the AI feature, why it matters. Keep each section under 60 seconds of narration.",
+      "generate-clips": "Use screen recordings for all stage demos. AI visuals for hook and recap only."
+    }
+  },
+  "lookLibrary": [
+    {
+      "id": "look_presenter",
+      "name": "AI Presenter",
+      "role": "primary",
+      "source": "video",
+      "character_id": "",
+      "outfit_id": "",
+      "combined_prompt_fragment": "Professional AI-generated presenter, friendly confident expression, clean modern outfit, studio lighting, looking at camera",
+      "reference_images": [],
+      "status": "ready",
+      "created": "2026-03-22T11:00:00.000Z",
+      "modified": "2026-03-22T11:00:00.000Z"
+    }
+  ],
+  "environmentLibrary": [
+    {
+      "id": "env_vpm_ui",
+      "name": "VPM Application Interface",
+      "type": "studio-set",
+      "source": "video",
+      "description": "Clean modern SaaS application interface with blue-purple accent. Used for all UI demo clips.",
+      "prompt_fragment": "Modern SaaS application interface, clean dashboard with sidebar navigation, blue and purple UI elements, professional design, 16:9",
+      "reference_images": [],
+      "status": "ready",
+      "created": "2026-03-22T11:05:00.000Z",
+      "modified": "2026-03-22T11:05:00.000Z"
+    },
+    {
+      "id": "env_clean_bg",
+      "name": "Clean Studio Background",
+      "type": "studio-set",
+      "source": "video",
+      "description": "Minimal gradient background for title cards and comparison graphics.",
+      "prompt_fragment": "Clean minimal studio background, soft blue-to-purple gradient, professional lighting, 16:9",
+      "reference_images": [],
+      "status": "ready",
+      "created": "2026-03-22T11:10:00.000Z",
+      "modified": "2026-03-22T11:10:00.000Z"
+    },
+    {
+      "id": "env_chaotic_desk",
+      "name": "Chaotic Multi-App Desktop",
+      "type": "indoor",
+      "source": "video",
+      "description": "Desktop with multiple overlapping app windows. Used for 'before' comparison shots.",
+      "prompt_fragment": "Chaotic computer desktop with 8+ overlapping application windows, Google Docs, Trello, Canva, video editor, spreadsheets, notification badges, stressed feeling, 16:9",
+      "reference_images": [],
+      "status": "ready",
+      "created": "2026-03-22T11:15:00.000Z",
+      "modified": "2026-03-22T11:15:00.000Z"
+    }
+  ],
+  "sceneLibrary": [
+    {
+      "id": "scene_ui_demo",
+      "name": "VPM Interface Demo",
+      "look_ids": [],
+      "environment_id": "env_vpm_ui",
+      "camera_direction": "Static, clean UI capture",
+      "suggested_duration": 8,
+      "notes": "For all VPM interface shots and montages.",
+      "status": "ready",
+      "source": "video",
+      "created": "2026-03-22T11:20:00.000Z",
+      "modified": "2026-03-22T11:20:00.000Z"
+    },
+    {
+      "id": "scene_comparison",
+      "name": "Before/After Comparison",
+      "look_ids": [],
+      "environment_id": "env_clean_bg",
+      "camera_direction": "Static, centered split-screen",
+      "suggested_duration": 8,
+      "notes": "For recap comparison graphics.",
+      "status": "ready",
+      "source": "video",
+      "created": "2026-03-22T11:25:00.000Z",
+      "modified": "2026-03-22T11:25:00.000Z"
+    }
+  ],
+  "brandOverrides": {
+    "enabled": false,
+    "name": "",
+    "tagline": "",
+    "primary_color": "",
+    "secondary_color": "",
+    "accent_color": "",
+    "voice": "",
+    "target_audience": "",
+    "logo_url": "",
+    "font_family": ""
+  },
+  "studioRequirements": {
+    "total_needed": 5,
+    "total_created": 5,
+    "total_draft": 0
+  }
+}

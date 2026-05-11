@@ -1,0 +1,11 @@
+{
+  "js": [
+    "src/core/vpm-part1.js",
+    "src/ui/vpm-part2a.js",
+    "src/ai/vpm-part2b.js"
+  ],
+  "css": [
+    "src/styles/vpm-part1.css",
+    "src/styles/vpm-part2.css"
+  ]
+}

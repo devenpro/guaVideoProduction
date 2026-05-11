@@ -1,0 +1,13 @@
+{
+  "name": "vpm",
+  "version": "1.0.0",
+  "description": "Video Production Manager — Drupal-injected vanilla JS SPA",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/devenpro/guaVideoProduction.git"
+  },
+  "scripts": {
+    "build": "node tools/build.js"
+  }
+}
