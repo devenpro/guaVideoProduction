@@ -1,4 +1,4 @@
-/*! VPM JS bundle — built 2026-05-12T02:39:22.552Z */
+/*! VPM JS bundle — built 2026-05-12T02:40:45.542Z */
 
 /* ===== src/core/constants.js ===== */
 /**
@@ -332,51 +332,21 @@
 })();
 
 
-/* ===== src/core/vpm-part1.js ===== */
+/* ===== src/core/state.js ===== */
 /**
- * AI Video Production Manager v1.0 - Part 1: Core Engine
- * VPM Design System — Prefix: vpm-
+ * VPM State Container
+ * The single source of truth for all VPM runtime state.
+ * Defines `S` and immediately exposes it on window so part1/part2a/part2b
+ * (and any future extracted module) can grab a reference and mutate it directly.
  *
- * General-purpose AI video production for any YouTube/social media content.
- * Standard mode: 5 stages (Start → Blueprint → Script → Clips → Publish)
- * Advanced mode: 7 stages (Start → Research → Blueprint → Script → Studio → Clips → Publish)
- * 3 clip tracks: AI (full REVP pipeline), Non-AI (plan+record), Template (auto-apply)
- * Studio: 5 tabs (overview, looks, environments, scenes, library)
- * Settings: 5 tabs (general, ai, defaults, brand, import-export)
+ * Exposes:
+ *   - window._vpmState  (legacy API — part2a and part2b poll for this)
+ *   - window._vpm.state  (new unified namespace, same reference)
  *
- * @version 1.0.0
+ * MUST load before src/core/vpm-part1.js.
  */
-(function($, Drupal) {
+(function () {
   'use strict';
-
-  window._vpmRenderers = window._vpmRenderers || {};
-
-  // ============================================================
-  // CONSTANTS (defined in src/core/constants.js, destructured here for backward-compatible local references)
-  // ============================================================
-  var _C = window._vpmConstants;
-  var APP_STAGES = _C.APP_STAGES, STAGE_ORDER_STANDARD = _C.STAGE_ORDER_STANDARD, STAGE_ORDER_ADVANCED = _C.STAGE_ORDER_ADVANCED;
-  var UTILITY_VIEWS = _C.UTILITY_VIEWS;
-  var PLATFORMS = _C.PLATFORMS, ASPECT_RATIOS = _C.ASPECT_RATIOS, AUDIO_MODES = _C.AUDIO_MODES, SEEDANCE_AUDIO_DIRECTIONS = _C.SEEDANCE_AUDIO_DIRECTIONS;
-  var VIDEO_STYLES = _C.VIDEO_STYLES, VOICE_GENDERS = _C.VOICE_GENDERS, VOICE_AGE_RANGES = _C.VOICE_AGE_RANGES;
-  var VOICE_STYLES = _C.VOICE_STYLES, VOICE_ACCENTS = _C.VOICE_ACCENTS;
-  var PRODUCTION_MODES = _C.PRODUCTION_MODES, PRESENTER_PREFS = _C.PRESENTER_PREFS;
-  var LANGUAGES = _C.LANGUAGES, TONES = _C.TONES;
-  var CLIP_TYPES = _C.CLIP_TYPES;
-  var AI_CLIP_STATUSES = _C.AI_CLIP_STATUSES, AI_CLIP_STATUS_ORDER = _C.AI_CLIP_STATUS_ORDER;
-  var NON_AI_CLIP_STATUSES = _C.NON_AI_CLIP_STATUSES, TEMPLATE_CLIP_STATUSES = _C.TEMPLATE_CLIP_STATUSES;
-  var STUDIO_TABS = _C.STUDIO_TABS, SETTINGS_TABS = _C.SETTINGS_TABS;
-  var AI_CLIP_TABS = _C.AI_CLIP_TABS, NON_AI_CLIP_TABS = _C.NON_AI_CLIP_TABS;
-  var LOOK_ROLES = _C.LOOK_ROLES, ENVIRONMENT_TYPES = _C.ENVIRONMENT_TYPES;
-  var MOTION_STRENGTHS = _C.MOTION_STRENGTHS, CAMERA_MOVEMENTS = _C.CAMERA_MOVEMENTS, TRANSITION_STYLES = _C.TRANSITION_STYLES;
-  var IMAGE_MODELS = _C.IMAGE_MODELS, VIDEO_MODELS = _C.VIDEO_MODELS;
-  var VIDEO_STATUSES = _C.VIDEO_STATUSES, ACTIVITY_TYPES = _C.ACTIVITY_TYPES;
-  var PLANNER_TONE_MAP = _C.PLANNER_TONE_MAP, VIDEO_GEN_MODES = _C.VIDEO_GEN_MODES;
-
-
-  // ============================================================
-  // SECTION 2: STATE OBJECT
-  // ============================================================
 
   var S = {
     // Persisted (3 JSON fields)
@@ -451,6 +421,61 @@
     _initializing: false, initialized: false, dirty: false,
     autoSaveTimer: null, lastSaved: null
   };
+
+  // Legacy API (part2a, part2b poll for this)
+  window._vpmState = S;
+  // New unified namespace
+  window._vpm = window._vpm || {};
+  window._vpm.state = S;
+})();
+
+
+/* ===== src/core/vpm-part1.js ===== */
+/**
+ * AI Video Production Manager v1.0 - Part 1: Core Engine
+ * VPM Design System — Prefix: vpm-
+ *
+ * General-purpose AI video production for any YouTube/social media content.
+ * Standard mode: 5 stages (Start → Blueprint → Script → Clips → Publish)
+ * Advanced mode: 7 stages (Start → Research → Blueprint → Script → Studio → Clips → Publish)
+ * 3 clip tracks: AI (full REVP pipeline), Non-AI (plan+record), Template (auto-apply)
+ * Studio: 5 tabs (overview, looks, environments, scenes, library)
+ * Settings: 5 tabs (general, ai, defaults, brand, import-export)
+ *
+ * @version 1.0.0
+ */
+(function($, Drupal) {
+  'use strict';
+
+  window._vpmRenderers = window._vpmRenderers || {};
+
+  // ============================================================
+  // CONSTANTS (defined in src/core/constants.js, destructured here for backward-compatible local references)
+  // ============================================================
+  var _C = window._vpmConstants;
+  var APP_STAGES = _C.APP_STAGES, STAGE_ORDER_STANDARD = _C.STAGE_ORDER_STANDARD, STAGE_ORDER_ADVANCED = _C.STAGE_ORDER_ADVANCED;
+  var UTILITY_VIEWS = _C.UTILITY_VIEWS;
+  var PLATFORMS = _C.PLATFORMS, ASPECT_RATIOS = _C.ASPECT_RATIOS, AUDIO_MODES = _C.AUDIO_MODES, SEEDANCE_AUDIO_DIRECTIONS = _C.SEEDANCE_AUDIO_DIRECTIONS;
+  var VIDEO_STYLES = _C.VIDEO_STYLES, VOICE_GENDERS = _C.VOICE_GENDERS, VOICE_AGE_RANGES = _C.VOICE_AGE_RANGES;
+  var VOICE_STYLES = _C.VOICE_STYLES, VOICE_ACCENTS = _C.VOICE_ACCENTS;
+  var PRODUCTION_MODES = _C.PRODUCTION_MODES, PRESENTER_PREFS = _C.PRESENTER_PREFS;
+  var LANGUAGES = _C.LANGUAGES, TONES = _C.TONES;
+  var CLIP_TYPES = _C.CLIP_TYPES;
+  var AI_CLIP_STATUSES = _C.AI_CLIP_STATUSES, AI_CLIP_STATUS_ORDER = _C.AI_CLIP_STATUS_ORDER;
+  var NON_AI_CLIP_STATUSES = _C.NON_AI_CLIP_STATUSES, TEMPLATE_CLIP_STATUSES = _C.TEMPLATE_CLIP_STATUSES;
+  var STUDIO_TABS = _C.STUDIO_TABS, SETTINGS_TABS = _C.SETTINGS_TABS;
+  var AI_CLIP_TABS = _C.AI_CLIP_TABS, NON_AI_CLIP_TABS = _C.NON_AI_CLIP_TABS;
+  var LOOK_ROLES = _C.LOOK_ROLES, ENVIRONMENT_TYPES = _C.ENVIRONMENT_TYPES;
+  var MOTION_STRENGTHS = _C.MOTION_STRENGTHS, CAMERA_MOVEMENTS = _C.CAMERA_MOVEMENTS, TRANSITION_STYLES = _C.TRANSITION_STYLES;
+  var IMAGE_MODELS = _C.IMAGE_MODELS, VIDEO_MODELS = _C.VIDEO_MODELS;
+  var VIDEO_STATUSES = _C.VIDEO_STATUSES, ACTIVITY_TYPES = _C.ACTIVITY_TYPES;
+  var PLANNER_TONE_MAP = _C.PLANNER_TONE_MAP, VIDEO_GEN_MODES = _C.VIDEO_GEN_MODES;
+
+
+  // ============================================================
+  // STATE (defined in src/core/state.js; reference captured here)
+  // ============================================================
+  var S = window._vpmState;
 
 
   // ============================================================
@@ -2147,7 +2172,6 @@
   // SECTION 15: API EXPORTS
   // ============================================================
 
-  window._vpmState = S;
   window._vpmRenderers = window._vpmRenderers || {};
   window._vpmRender = renderCurrentView;
   window._vpmRenderApp = renderApp;
