@@ -6,6 +6,7 @@
     "src/ui/vpm-part2a.js",
     "src/ai/brand-service.js",
     "src/ai/llm-service.js",
+    "src/ai/contexts.js",
     "src/ai/prompt-templates/seedance.js",
     "src/ai/prompt-templates/veo-3.1.js",
     "src/ai/prompt-templates/kling.js",
