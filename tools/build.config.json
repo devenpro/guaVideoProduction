@@ -11,6 +11,7 @@
     "src/ai/prompt-templates/veo-3.1.js",
     "src/ai/prompt-templates/kling.js",
     "src/ai/prompt-templates/runway.js",
+    "src/ai/generate-prompt.js",
     "src/ai/vpm-part2b.js"
   ],
   "css": [
