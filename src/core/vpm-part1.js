@@ -996,7 +996,13 @@
   }
 
   function renderAppShell() {
-    return renderHeader() + '<div class="vpm-body">' + renderSidebar() + '<div class="vpm-main"><div class="vpm-content" id="vpmContent"></div></div></div><div id="vpmToasts" class="vpm-toast-container"></div>';
+    return renderHeader() + '<div class="vpm-body">' + renderSidebar() + '<div class="vpm-main"><div class="vpm-content" id="vpmContent"></div></div>' + renderCoachPanelShell() + '</div><div id="vpmToasts" class="vpm-toast-container"></div>';
+  }
+
+  // Right-rail Coach panel shell. _refreshCoachPanel() fills #vpmCoach with stage-specific content on every render.
+  function renderCoachPanelShell() {
+    var collapsed = !!(S.meta && S.meta._ui && S.meta._ui.coach_collapsed);
+    return '<aside class="vpm-coach' + (collapsed ? ' vpm-coach-collapsed' : '') + '" id="vpmCoach"></aside>';
   }
 
   function renderHeader() {
@@ -1010,6 +1016,7 @@
     html += '</div><div class="vpm-header-center">';
     if (v.title) html += '<span class="vpm-header-project">' + esc(truncate(v.title, 50)) + '</span>';
     html += '</div><div class="vpm-header-right">' + statusBadge(S.computedStatus);
+    html += '<button class="vpm-btn-icon vpm-coach-header-toggle" data-action="toggle-coach" title="Toggle Coach panel">' + icon('compass') + '</button>';
     html += '<button class="vpm-btn vpm-btn-primary vpm-btn-sm" id="vpmSaveNodeBtn">' + icon('floppy-disk') + ' Save</button>';
     html += '<span class="vpm-last-saved" id="vpmLastSaved">' + (S.lastSaved ? icon('circle-check') + ' ' + formatRelativeTime(S.lastSaved) : '') + '</span>';
     html += '</div></div>';
@@ -1094,7 +1101,202 @@
     _updateLastSaved();
   }
 
-  function render() { _captureUIState(); _refreshSidebarNav(); renderCurrentView(); }
+  function render() { _captureUIState(); _refreshSidebarNav(); _refreshCoachPanel(); renderCurrentView(); }
+
+  // ============================================================
+  // COACH PANEL — stage-aware guide that lives in the right rail
+  // ============================================================
+
+  // Returns content for the current stage: { title, description, checklist, tips, nextAction }
+  function _getCoachContent() {
+    var d = S.data || {};
+    var p = (d.start && d.start.preferences) || {};
+    var stage = S.currentStage;
+    var startStep = S.startStep || 'import';
+    var c = { stage: stage, title: '', description: '', checklist: [], tips: [], nextAction: null };
+    switch (stage) {
+      case 'start': {
+        c.title = 'Start — Tell the app what you\'re making';
+        c.description = 'These choices set the direction for every later stage. The AI uses them when it generates research, scripts, scenes and prompts.';
+        c.checklist = [
+          { done: !!(d.start && d.start.raw_input), label: 'Describe or import your video' },
+          { done: !!p.language, label: 'Pick a language' },
+          { done: !!(p.platforms && p.platforms.length), label: 'Choose target platform(s)' },
+          { done: !!p.target_duration, label: 'Set a target duration' },
+          { done: !!p.audio_mode, label: 'Choose how audio is produced' },
+          { done: !!(d.start && d.start.processed), label: 'Launch production' }
+        ];
+        c.tips = ['Use the Describe tab + Auto-fill AI to populate the 9 primary preferences in seconds.',
+                  'Advanced options are collapsed — defaults work for most videos.'];
+        if (startStep === 'import') c.nextAction = { label: 'Set Preferences', action: 'start-goto-step', step: 'preferences' };
+        else if (startStep === 'preferences') c.nextAction = { label: 'Review & Launch', action: 'start-goto-step', step: 'review' };
+        else c.nextAction = { label: 'Launch Production', action: 'start-launch' };
+        break;
+      }
+      case 'research': {
+        var r = d.research || {};
+        c.title = 'Research — Sharpen the brief';
+        c.description = 'AI pulls audience insights, competitor angles, trends and content strategy based on your Start inputs.';
+        c.checklist = [
+          { done: !!r.generated, label: 'Generate research brief' },
+          { done: !!(r.audience_insights), label: 'Review audience insights' },
+          { done: !!(r.content_strategy), label: 'Review content strategy' },
+          { done: !!((r.sources || []).length), label: 'Add ≥1 reference source (optional)' }
+        ];
+        c.tips = ['The chip strip at the top shows which Start inputs feed the AI — click to revise any.',
+                  'Each panel has its own regenerate button if one needs a refresh.'];
+        c.nextAction = { label: 'Continue to Blueprint', action: 'navigate', stage: 'blueprint' };
+        break;
+      }
+      case 'blueprint': {
+        var bp = d.blueprint || {};
+        var hasSec = (bp.sections || []).some(function(s) { return (s.label || '').trim(); });
+        c.title = 'Blueprint — Outline the video';
+        c.description = 'Lay out the section flow and durations. The Script stage fills these sections with narration.';
+        c.checklist = [
+          { done: !!bp.title, label: 'Set a working title' },
+          { done: hasSec, label: 'Add at least one labeled section' },
+          { done: (bp.sections || []).length >= 3, label: '3+ sections for a complete arc (recommended)' },
+          { done: !!bp.confirmed, label: 'Confirm blueprint' }
+        ];
+        c.tips = ['Aim for 5–8 sections for a typical YouTube video, 2–3 for a Short.',
+                  'Click "Confirm" once you\'re happy with the structure.'];
+        c.nextAction = { label: bp.confirmed ? 'Continue to Script' : 'Confirm Blueprint', action: bp.confirmed ? 'navigate' : 'confirm-blueprint', stage: 'script' };
+        break;
+      }
+      case 'script': {
+        var sc = d.script || {};
+        var secs = sc.sections || [];
+        var totalChars = 0;
+        for (var i = 0; i < secs.length; i++) totalChars += (secs[i].content ? stripHtml(secs[i].content).trim().length : 0);
+        c.title = 'Script — Write the narration';
+        c.description = 'Fill each section. The AI can draft from scratch or enhance existing copy. When all sections feel right, finalize.';
+        c.checklist = [
+          { done: secs.length > 0, label: 'Blueprint sections imported' },
+          { done: totalChars >= 100, label: 'Total content ≥ ~100 chars' },
+          { done: secs.every(function(s) { return s.content && stripHtml(s.content).trim().length > 0; }), label: 'Every section has content' },
+          { done: !!sc.finalized, label: 'Finalize script' }
+        ];
+        c.tips = ['Use the Enhance button on a section to AI-polish what you already wrote.',
+                  'Word count and runtime estimate appear under each section.'];
+        c.nextAction = { label: sc.finalized ? (S.mode === 'advanced' ? 'Continue to Studio' : 'Continue to Clips') : 'Finalize Script', action: sc.finalized ? 'navigate' : 'finalize-script', stage: S.mode === 'advanced' ? 'studio' : 'clips' };
+        break;
+      }
+      case 'studio': {
+        c.title = 'Studio — Visual setup';
+        c.description = 'Define the looks, environments and scenes that AI clips will reference. The Brand Library you picked in Start seeds this.';
+        c.checklist = [
+          { done: (S.allLooks || []).length > 0, label: 'Add ≥1 look (character or style)' },
+          { done: (S.allEnvironments || []).length > 0, label: 'Add ≥1 environment' },
+          { done: (S.allScenes || []).length > 0, label: 'Add ≥1 scene (optional)' },
+          { done: !!S.studioReady, label: 'All entities marked ready' }
+        ];
+        c.tips = ['Looks + environments combine into scenes that AI clips can reuse for consistency.',
+                  'Brand Studio entities you selected in Start preferences are already available here.'];
+        c.nextAction = { label: 'Continue to Clips', action: 'navigate', stage: 'clips' };
+        break;
+      }
+      case 'clips': {
+        var clips = d.clips || [];
+        c.title = 'Clips — Build each shot';
+        c.description = 'Every section becomes one or more clips. AI clips get prompts and frames; non-AI clips get a brief.';
+        c.checklist = [
+          { done: clips.length > 0, label: 'Generate or add clips' },
+          { done: clips.length >= 2, label: 'At least 2 clips' },
+          { done: S.clipStats.aiDone + S.clipStats.nonAiDone + S.clipStats.templateDone >= clips.length / 2, label: 'Half of clips marked done' },
+          { done: !!S.productionComplete, label: 'All clips marked done' }
+        ];
+        c.tips = ['Select a clip in the list to open its detail editor with tabs.',
+                  'Use Generate Clip Breakdown to AI-create the full clip list from the script.'];
+        c.nextAction = { label: 'Continue to Publish', action: 'navigate', stage: 'publish' };
+        break;
+      }
+      case 'publish': {
+        var pub = d.publishing || {};
+        var yt = pub.youtube || {};
+        c.title = 'Publish — Ship it';
+        c.description = 'Generate YouTube metadata, pick a thumbnail, and export the project.';
+        c.checklist = [
+          { done: !!yt.title, label: 'YouTube title set' },
+          { done: !!yt.description, label: 'Description written' },
+          { done: !!(d.thumbnails && d.thumbnails.selected_idea_id), label: 'Thumbnail selected' },
+          { done: !!S.exported, label: 'Project exported' }
+        ];
+        c.tips = ['Generate YouTube Metadata uses your script + research to suggest a title, description and tags.',
+                  'Thumbnail workshop is a 3-step flow: ideas → chat → finalize.'];
+        c.nextAction = { label: 'Export Project', action: 'export-project' };
+        break;
+      }
+      case 'activity':
+      case 'settings':
+        c.title = APP_STAGES[stage] ? APP_STAGES[stage].label : (UTILITY_VIEWS[stage] ? UTILITY_VIEWS[stage].label : stage);
+        c.description = (UTILITY_VIEWS[stage] && UTILITY_VIEWS[stage].label) ? 'Utility view — your work isn\'t paused.' : '';
+        c.tips = ['Jump back to your last working stage with the sidebar.'];
+        break;
+    }
+    return c;
+  }
+
+  function _refreshCoachPanel() {
+    var $panel = $('#vpmCoach');
+    if (!$panel.length) return;
+    var ui = (S.meta && S.meta._ui) || {};
+    var collapsed = !!ui.coach_collapsed;
+    $panel.toggleClass('vpm-coach-collapsed', collapsed);
+
+    if (collapsed) {
+      $panel.html('<button class="vpm-coach-toggle vpm-coach-toggle-collapsed" data-action="toggle-coach" title="Show Coach">' + icon('lightbulb') + '</button>');
+      return;
+    }
+
+    var c = _getCoachContent();
+    var dismissedMap = ui.coach_dismissed || {};
+    if (dismissedMap[c.stage]) {
+      $panel.html('<div class="vpm-coach-collapsed-stub"><button class="vpm-coach-toggle" data-action="show-coach" data-stage="' + esc(c.stage) + '" title="Show Coach">' + icon('lightbulb') + ' Coach hidden for this stage</button></div>');
+      return;
+    }
+
+    var html = '';
+    html += '<div class="vpm-coach-header">';
+    html += '<span class="vpm-coach-title">' + icon('compass') + ' ' + esc(c.title || 'Coach') + '</span>';
+    html += '<div class="vpm-coach-header-actions">';
+    html += '<button class="vpm-btn-icon-sm" data-action="dismiss-coach" data-stage="' + esc(c.stage) + '" title="Hide for this stage">' + icon('xmark') + '</button>';
+    html += '<button class="vpm-btn-icon-sm" data-action="toggle-coach" title="Collapse">' + icon('chevron-right') + '</button>';
+    html += '</div></div>';
+
+    if (c.description) html += '<p class="vpm-coach-desc">' + esc(c.description) + '</p>';
+
+    if (c.checklist && c.checklist.length) {
+      html += '<div class="vpm-coach-section-title">' + icon('list-check') + ' Checklist</div>';
+      html += '<ul class="vpm-coach-checklist">';
+      for (var i = 0; i < c.checklist.length; i++) {
+        var ci = c.checklist[i];
+        html += '<li class="' + (ci.done ? 'vpm-coach-check-done' : 'vpm-coach-check-todo') + '">';
+        html += '<span class="vpm-coach-check-icon">' + icon(ci.done ? 'circle-check' : 'circle') + '</span>';
+        html += '<span>' + esc(ci.label) + '</span></li>';
+      }
+      html += '</ul>';
+    }
+
+    if (c.tips && c.tips.length) {
+      html += '<div class="vpm-coach-section-title">' + icon('lightbulb') + ' Tips</div>';
+      html += '<ul class="vpm-coach-tips">';
+      for (var t = 0; t < c.tips.length; t++) html += '<li>' + esc(c.tips[t]) + '</li>';
+      html += '</ul>';
+    }
+
+    if (c.nextAction) {
+      var na = c.nextAction;
+      var attrs = 'data-action="' + esc(na.action) + '"';
+      if (na.stage) attrs += ' data-stage="' + esc(na.stage) + '"';
+      if (na.step) attrs += ' data-step="' + esc(na.step) + '"';
+      html += '<div class="vpm-coach-next-action">';
+      html += '<button class="vpm-btn vpm-btn-primary vpm-btn-lg" ' + attrs + '>' + icon('arrow-right') + ' ' + esc(na.label) + '</button>';
+      html += '</div>';
+    }
+
+    $panel.html(html);
+  }
 
 
   // ============================================================
@@ -1339,6 +1541,33 @@
     });
     // Save
     $(document).off('click.vpm1-save').on('click.vpm1-save', '#vpmSaveNodeBtn', function() { triggerDrupalSave(); });
+    // Coach panel toggle (collapse/expand globally)
+    $(document).off('click.vpm1-coach').on('click.vpm1-coach', '[data-action="toggle-coach"]', function(e) {
+      e.preventDefault();
+      var ui = S.meta._ui = S.meta._ui || {};
+      ui.coach_collapsed = !ui.coach_collapsed;
+      syncToTextarea();
+      _refreshCoachPanel();
+    });
+    // Dismiss coach for current stage
+    $(document).off('click.vpm1-dcoach').on('click.vpm1-dcoach', '[data-action="dismiss-coach"]', function(e) {
+      e.preventDefault();
+      var stage = $(this).data('stage') || S.currentStage;
+      var ui = S.meta._ui = S.meta._ui || {};
+      ui.coach_dismissed = ui.coach_dismissed || {};
+      ui.coach_dismissed[stage] = true;
+      syncToTextarea();
+      _refreshCoachPanel();
+    });
+    // Show coach (after per-stage dismiss)
+    $(document).off('click.vpm1-scoach').on('click.vpm1-scoach', '[data-action="show-coach"]', function(e) {
+      e.preventDefault();
+      var stage = $(this).data('stage') || S.currentStage;
+      var ui = S.meta._ui = S.meta._ui || {};
+      if (ui.coach_dismissed) delete ui.coach_dismissed[stage];
+      syncToTextarea();
+      _refreshCoachPanel();
+    });
     // Clip selection
     $(document).off('click.vpm1-clip-sel').on('click.vpm1-clip-sel', '[data-action="select-clip"]', function() {
       var cid = $(this).data('clip-id'); if (!cid) return;

@@ -1,4 +1,4 @@
-/*! VPM CSS bundle — built 2026-05-12T06:26:47.561Z */
+/*! VPM CSS bundle — built 2026-05-12T06:29:24.870Z */
 
 /* ===== src/styles/vpm-part1.css ===== */
 /**
@@ -145,6 +145,84 @@ body.vpm-active .region-breadcrumb, body.vpm-active .page-title-wrapper, body.vp
    S6: MAIN CONTENT AREA
    ============================================================ */
 .vpm-main { flex: 1; overflow-y: auto; min-width: 0; }
+/* Coach panel (right rail) */
+.vpm-coach {
+  width: 320px;
+  flex-shrink: 0;
+  background: var(--vpm-white);
+  border-left: 1px solid var(--vpm-border);
+  padding: var(--vpm-space-4);
+  overflow-y: auto;
+  transition: width var(--vpm-transition-fast);
+}
+.vpm-coach-collapsed { width: 48px; padding: var(--vpm-space-2); }
+.vpm-coach-collapsed .vpm-coach-toggle-collapsed {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--vpm-primary-subtle);
+  color: var(--vpm-primary);
+  border: 1px solid var(--vpm-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.vpm-coach-collapsed .vpm-coach-toggle-collapsed:hover { background: var(--vpm-primary-light); }
+.vpm-coach-header {
+  display: flex;
+  align-items: center;
+  gap: var(--vpm-space-2);
+  margin-bottom: var(--vpm-space-3);
+  padding-bottom: var(--vpm-space-2);
+  border-bottom: 1px solid var(--vpm-border-light);
+}
+.vpm-coach-title { font-weight: 700; font-size: var(--vpm-font-md); color: var(--vpm-text-primary); flex: 1; }
+.vpm-coach-header-actions { display: flex; gap: 4px; }
+.vpm-coach-desc { font-size: var(--vpm-font-sm); color: var(--vpm-text-secondary); margin-bottom: var(--vpm-space-3); line-height: 1.5; }
+.vpm-coach-section-title {
+  font-size: var(--vpm-font-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--vpm-text-muted);
+  margin: var(--vpm-space-3) 0 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.vpm-coach-checklist, .vpm-coach-tips { list-style: none; padding: 0; margin: 0; }
+.vpm-coach-checklist li { display: flex; align-items: flex-start; gap: 8px; padding: 4px 0; font-size: var(--vpm-font-sm); }
+.vpm-coach-check-icon { flex-shrink: 0; margin-top: 2px; }
+.vpm-coach-check-done { color: var(--vpm-text-secondary); text-decoration: line-through; }
+.vpm-coach-check-done .vpm-coach-check-icon { color: var(--vpm-success); }
+.vpm-coach-check-todo { color: var(--vpm-text-primary); }
+.vpm-coach-check-todo .vpm-coach-check-icon { color: var(--vpm-text-muted); }
+.vpm-coach-tips li { font-size: var(--vpm-font-xs); color: var(--vpm-text-muted); padding: 4px 0; padding-left: 18px; position: relative; line-height: 1.5; }
+.vpm-coach-tips li::before { content: ""; position: absolute; left: 6px; top: 12px; width: 4px; height: 4px; border-radius: 50%; background: var(--vpm-text-muted); }
+.vpm-coach-next-action { margin-top: var(--vpm-space-3); padding-top: var(--vpm-space-3); border-top: 1px solid var(--vpm-border-light); }
+.vpm-coach-next-action .vpm-btn { width: 100%; }
+.vpm-coach-collapsed-stub { padding: 16px 0; text-align: center; }
+.vpm-coach-collapsed-stub .vpm-coach-toggle {
+  background: transparent;
+  border: 1px dashed var(--vpm-border);
+  color: var(--vpm-text-muted);
+  padding: 8px 12px;
+  border-radius: var(--vpm-radius-md);
+  cursor: pointer;
+  font-size: var(--vpm-font-xs);
+}
+.vpm-coach-collapsed-stub .vpm-coach-toggle:hover { color: var(--vpm-primary); border-color: var(--vpm-primary); }
+.vpm-coach-header-toggle { color: var(--vpm-text-secondary); }
+.vpm-coach-header-toggle:hover { color: var(--vpm-primary); }
+@media (max-width: 1200px) {
+  .vpm-coach { width: 260px; }
+  .vpm-coach-collapsed { width: 40px; }
+}
+@media (max-width: 992px) {
+  .vpm-coach:not(.vpm-coach-collapsed) { display: none; }
+  .vpm-coach.vpm-coach-collapsed { position: fixed; top: var(--vpm-header-h, 56px); right: 8px; z-index: 50; background: transparent; border: none; padding: 0; }
+}
 .vpm-content { padding: var(--vpm-space-5); max-width: 1100px; margin: 0 auto; }
 .vpm-view { }
 .vpm-view-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: var(--vpm-space-5); gap: var(--vpm-space-3); flex-wrap: wrap; }
