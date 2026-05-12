@@ -1,17 +1,27 @@
-/*! VPM JS bundle — built 2026-05-12T02:39:22.552Z */
+/*! VPM JS bundle — built 2026-05-11T18:31:00.405Z */
 
-/* ===== src/core/constants.js ===== */
+/* ===== src/core/vpm-part1.js ===== */
 /**
- * VPM Constants
- * All workflow/UI enum data: stages, platforms, audio modes, video styles, clip types, statuses, models, etc.
- * Exposes:
- *   - window._vpmConstants  (legacy aggregate, used throughout part1/part2a/part2b)
- *   - window._vpm.constants  (new unified namespace, same object reference)
+ * AI Video Production Manager v1.0 - Part 1: Core Engine
+ * VPM Design System — Prefix: vpm-
  *
- * MUST load before src/core/vpm-part1.js (part1 destructures these into local vars).
+ * General-purpose AI video production for any YouTube/social media content.
+ * Standard mode: 5 stages (Start → Blueprint → Script → Clips → Publish)
+ * Advanced mode: 7 stages (Start → Research → Blueprint → Script → Studio → Clips → Publish)
+ * 3 clip tracks: AI (full REVP pipeline), Non-AI (plan+record), Template (auto-apply)
+ * Studio: 5 tabs (overview, looks, environments, scenes, library)
+ * Settings: 5 tabs (general, ai, defaults, brand, import-export)
+ *
+ * @version 1.0.0
  */
-(function () {
+(function($, Drupal) {
   'use strict';
+
+  window._vpmRenderers = window._vpmRenderers || {};
+
+  // ============================================================
+  // SECTION 1: CONSTANTS
+  // ============================================================
 
   // 1a. Workflow stages — all possible stages (mode filters which are active)
   var APP_STAGES = {
@@ -115,7 +125,7 @@
   // 1h. Languages (8+)
   var LANGUAGES = {
     'english':  { label: 'English',   icon: 'e' },
-    'hindi':    { label: 'Hindi',     icon: 'h',  sub: 'हिंदी' },
+    'hindi':    { label: 'Hindi',     icon: 'h',  sub: '\u0939\u093f\u0902\u0926\u0940' },
     'hinglish': { label: 'Hinglish',  icon: 'he', sub: 'Mix' },
     'spanish':  { label: 'Spanish',   icon: 'es' },
     'french':   { label: 'French',    icon: 'fr' },
@@ -237,8 +247,8 @@
     'seedream': { label: 'Seedream',        icon: 'seedling' }
   };
   var VIDEO_MODELS = {
-    'seedance':        { label: 'Seedance 2.0',   icon: 'seedling',  isDefault: true, durations: [5, 10, 15],     defaultDuration: 10, minDuration: 5,  maxDuration: 15, durationStep: 5, defaultGenMode: 'ingredients-to-video', notes: 'Primary model. Ingredients & Text to Video. Sweet spot 8–10s per clip.' },
-    'google-veo-3.1':  { label: 'Google VEO 3.1', icon: 'film',                       durations: [5, 6, 7, 8],    defaultDuration: 8,  minDuration: 5,  maxDuration: 8,  durationStep: 1, defaultGenMode: 'frames-to-video',      notes: 'Frames to Video — reference image required. Integrated audio. Max 8s.' },
+    'seedance':        { label: 'Seedance 2.0',   icon: 'seedling',  isDefault: true, durations: [5, 10, 15],     defaultDuration: 10, minDuration: 5,  maxDuration: 15, durationStep: 5, defaultGenMode: 'ingredients-to-video', notes: 'Primary model. Ingredients & Text to Video. Sweet spot 8\u201310s per clip.' },
+    'google-veo-3.1':  { label: 'Google VEO 3.1', icon: 'film',                       durations: [5, 6, 7, 8],    defaultDuration: 8,  minDuration: 5,  maxDuration: 8,  durationStep: 1, defaultGenMode: 'frames-to-video',      notes: 'Frames to Video \u2014 reference image required. Integrated audio. Max 8s.' },
     'kling':           { label: 'Kling',          icon: 'bolt',                       durations: [5, 10],         defaultDuration: 5,  minDuration: 5,  maxDuration: 10, durationStep: 5, notes: 'Fast generation. 5s or 10s clips.' },
     'runway':          { label: 'Runway',         icon: 'plane',                      durations: [4, 10, 16],     defaultDuration: 10, minDuration: 4,  maxDuration: 16, durationStep: 1, notes: 'Creative style control. 4-16s range.' }
   };
@@ -292,86 +302,6 @@
     'brand_override_set': { label: 'Brand Override', icon: 'palette' },
     'planner_imported': { label: 'Planner Import', icon: 'file-import' }
   };
-
-  // 1r. Video generation modes (used by Seedance, VEO 3.1)
-  var VIDEO_GEN_MODES = {
-    'frames-to-video':      { label: 'Frames to Video',      icon: 'images',              description: 'Generate video from first frame (and optional last frame) reference images' },
-    'text-to-video':        { label: 'Text to Video',        icon: 'wand-magic-sparkles', description: 'Generate video purely from text prompt — no reference images needed' },
-    'ingredients-to-video': { label: 'Ingredients to Video',  icon: 'layer-group',         description: 'Provide ingredient images (characters, environments, objects) and compose a video from them' }
-  };
-
-  // ========================================================
-  // EXPORTS
-  // ========================================================
-  var Constants = {
-    APP_STAGES: APP_STAGES, STAGE_ORDER_STANDARD: STAGE_ORDER_STANDARD, STAGE_ORDER_ADVANCED: STAGE_ORDER_ADVANCED,
-    UTILITY_VIEWS: UTILITY_VIEWS,
-    PLATFORMS: PLATFORMS, ASPECT_RATIOS: ASPECT_RATIOS, AUDIO_MODES: AUDIO_MODES, SEEDANCE_AUDIO_DIRECTIONS: SEEDANCE_AUDIO_DIRECTIONS,
-    VIDEO_STYLES: VIDEO_STYLES, VOICE_GENDERS: VOICE_GENDERS, VOICE_AGE_RANGES: VOICE_AGE_RANGES,
-    VOICE_STYLES: VOICE_STYLES, VOICE_ACCENTS: VOICE_ACCENTS,
-    PRODUCTION_MODES: PRODUCTION_MODES, PRESENTER_PREFS: PRESENTER_PREFS,
-    LANGUAGES: LANGUAGES, TONES: TONES,
-    CLIP_TYPES: CLIP_TYPES,
-    AI_CLIP_STATUSES: AI_CLIP_STATUSES, AI_CLIP_STATUS_ORDER: AI_CLIP_STATUS_ORDER,
-    NON_AI_CLIP_STATUSES: NON_AI_CLIP_STATUSES, TEMPLATE_CLIP_STATUSES: TEMPLATE_CLIP_STATUSES,
-    STUDIO_TABS: STUDIO_TABS, SETTINGS_TABS: SETTINGS_TABS,
-    AI_CLIP_TABS: AI_CLIP_TABS, NON_AI_CLIP_TABS: NON_AI_CLIP_TABS,
-    LOOK_ROLES: LOOK_ROLES, ENVIRONMENT_TYPES: ENVIRONMENT_TYPES,
-    MOTION_STRENGTHS: MOTION_STRENGTHS, CAMERA_MOVEMENTS: CAMERA_MOVEMENTS, TRANSITION_STYLES: TRANSITION_STYLES,
-    IMAGE_MODELS: IMAGE_MODELS, VIDEO_MODELS: VIDEO_MODELS,
-    VIDEO_STATUSES: VIDEO_STATUSES, ACTIVITY_TYPES: ACTIVITY_TYPES,
-    PLANNER_TONE_MAP: PLANNER_TONE_MAP,
-    VIDEO_GEN_MODES: VIDEO_GEN_MODES
-  };
-
-  // Legacy/public API (used throughout part1, part2a, part2b)
-  window._vpmConstants = Constants;
-  // New unified namespace
-  window._vpm = window._vpm || {};
-  window._vpm.constants = Constants;
-})();
-
-
-/* ===== src/core/vpm-part1.js ===== */
-/**
- * AI Video Production Manager v1.0 - Part 1: Core Engine
- * VPM Design System — Prefix: vpm-
- *
- * General-purpose AI video production for any YouTube/social media content.
- * Standard mode: 5 stages (Start → Blueprint → Script → Clips → Publish)
- * Advanced mode: 7 stages (Start → Research → Blueprint → Script → Studio → Clips → Publish)
- * 3 clip tracks: AI (full REVP pipeline), Non-AI (plan+record), Template (auto-apply)
- * Studio: 5 tabs (overview, looks, environments, scenes, library)
- * Settings: 5 tabs (general, ai, defaults, brand, import-export)
- *
- * @version 1.0.0
- */
-(function($, Drupal) {
-  'use strict';
-
-  window._vpmRenderers = window._vpmRenderers || {};
-
-  // ============================================================
-  // CONSTANTS (defined in src/core/constants.js, destructured here for backward-compatible local references)
-  // ============================================================
-  var _C = window._vpmConstants;
-  var APP_STAGES = _C.APP_STAGES, STAGE_ORDER_STANDARD = _C.STAGE_ORDER_STANDARD, STAGE_ORDER_ADVANCED = _C.STAGE_ORDER_ADVANCED;
-  var UTILITY_VIEWS = _C.UTILITY_VIEWS;
-  var PLATFORMS = _C.PLATFORMS, ASPECT_RATIOS = _C.ASPECT_RATIOS, AUDIO_MODES = _C.AUDIO_MODES, SEEDANCE_AUDIO_DIRECTIONS = _C.SEEDANCE_AUDIO_DIRECTIONS;
-  var VIDEO_STYLES = _C.VIDEO_STYLES, VOICE_GENDERS = _C.VOICE_GENDERS, VOICE_AGE_RANGES = _C.VOICE_AGE_RANGES;
-  var VOICE_STYLES = _C.VOICE_STYLES, VOICE_ACCENTS = _C.VOICE_ACCENTS;
-  var PRODUCTION_MODES = _C.PRODUCTION_MODES, PRESENTER_PREFS = _C.PRESENTER_PREFS;
-  var LANGUAGES = _C.LANGUAGES, TONES = _C.TONES;
-  var CLIP_TYPES = _C.CLIP_TYPES;
-  var AI_CLIP_STATUSES = _C.AI_CLIP_STATUSES, AI_CLIP_STATUS_ORDER = _C.AI_CLIP_STATUS_ORDER;
-  var NON_AI_CLIP_STATUSES = _C.NON_AI_CLIP_STATUSES, TEMPLATE_CLIP_STATUSES = _C.TEMPLATE_CLIP_STATUSES;
-  var STUDIO_TABS = _C.STUDIO_TABS, SETTINGS_TABS = _C.SETTINGS_TABS;
-  var AI_CLIP_TABS = _C.AI_CLIP_TABS, NON_AI_CLIP_TABS = _C.NON_AI_CLIP_TABS;
-  var LOOK_ROLES = _C.LOOK_ROLES, ENVIRONMENT_TYPES = _C.ENVIRONMENT_TYPES;
-  var MOTION_STRENGTHS = _C.MOTION_STRENGTHS, CAMERA_MOVEMENTS = _C.CAMERA_MOVEMENTS, TRANSITION_STYLES = _C.TRANSITION_STYLES;
-  var IMAGE_MODELS = _C.IMAGE_MODELS, VIDEO_MODELS = _C.VIDEO_MODELS;
-  var VIDEO_STATUSES = _C.VIDEO_STATUSES, ACTIVITY_TYPES = _C.ACTIVITY_TYPES;
-  var PLANNER_TONE_MAP = _C.PLANNER_TONE_MAP, VIDEO_GEN_MODES = _C.VIDEO_GEN_MODES;
 
 
   // ============================================================
@@ -2233,6 +2163,30 @@
   window._vpmResolveVoiceProfile = resolveVoiceProfile;
   window._vpmGetMaxWordsForDuration = getMaxWordsForDuration;
   window._vpmSetNested = _setNested;
+  window._vpmConstants = {
+    APP_STAGES: APP_STAGES, STAGE_ORDER_STANDARD: STAGE_ORDER_STANDARD, STAGE_ORDER_ADVANCED: STAGE_ORDER_ADVANCED,
+    UTILITY_VIEWS: UTILITY_VIEWS,
+    PLATFORMS: PLATFORMS, ASPECT_RATIOS: ASPECT_RATIOS, AUDIO_MODES: AUDIO_MODES, SEEDANCE_AUDIO_DIRECTIONS: SEEDANCE_AUDIO_DIRECTIONS,
+    VIDEO_STYLES: VIDEO_STYLES, VOICE_GENDERS: VOICE_GENDERS, VOICE_AGE_RANGES: VOICE_AGE_RANGES,
+    VOICE_STYLES: VOICE_STYLES, VOICE_ACCENTS: VOICE_ACCENTS,
+    PRODUCTION_MODES: PRODUCTION_MODES, PRESENTER_PREFS: PRESENTER_PREFS,
+    LANGUAGES: LANGUAGES, TONES: TONES,
+    CLIP_TYPES: CLIP_TYPES,
+    AI_CLIP_STATUSES: AI_CLIP_STATUSES, AI_CLIP_STATUS_ORDER: AI_CLIP_STATUS_ORDER,
+    NON_AI_CLIP_STATUSES: NON_AI_CLIP_STATUSES, TEMPLATE_CLIP_STATUSES: TEMPLATE_CLIP_STATUSES,
+    STUDIO_TABS: STUDIO_TABS, SETTINGS_TABS: SETTINGS_TABS,
+    AI_CLIP_TABS: AI_CLIP_TABS, NON_AI_CLIP_TABS: NON_AI_CLIP_TABS,
+    LOOK_ROLES: LOOK_ROLES, ENVIRONMENT_TYPES: ENVIRONMENT_TYPES,
+    MOTION_STRENGTHS: MOTION_STRENGTHS, CAMERA_MOVEMENTS: CAMERA_MOVEMENTS, TRANSITION_STYLES: TRANSITION_STYLES,
+    IMAGE_MODELS: IMAGE_MODELS, VIDEO_MODELS: VIDEO_MODELS,
+    VIDEO_STATUSES: VIDEO_STATUSES, ACTIVITY_TYPES: ACTIVITY_TYPES,
+    PLANNER_TONE_MAP: PLANNER_TONE_MAP,
+    VIDEO_GEN_MODES: {
+      'frames-to-video':      { label: 'Frames to Video',      icon: 'images',              description: 'Generate video from first frame (and optional last frame) reference images' },
+      'text-to-video':        { label: 'Text to Video',        icon: 'wand-magic-sparkles', description: 'Generate video purely from text prompt \u2014 no reference images needed' },
+      'ingredients-to-video': { label: 'Ingredients to Video',  icon: 'layer-group',         description: 'Provide ingredient images (characters, environments, objects) and compose a video from them' }
+    }
+  };
 
   console.log('[VPM] Part 1 v1.0 loaded \u2014 15 sections');
 

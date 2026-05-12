@@ -1,5 +1,6 @@
 {
   "js": [
+    "src/core/constants.js",
     "src/core/vpm-part1.js",
     "src/ui/vpm-part2a.js",
     "src/ai/vpm-part2b.js"
