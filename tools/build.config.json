@@ -2,6 +2,7 @@
   "js": [
     "src/core/constants.js",
     "src/core/state.js",
+    "src/utils/format.js",
     "src/core/vpm-part1.js",
     "src/ui/vpm-part2a.js",
     "src/ai/brand-service.js",
