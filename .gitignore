@@ -22,3 +22,6 @@ desktop.ini
 
 # Node (build script has no deps, but defensive)
 node_modules/
+
+# Refactor-only baseline snapshots (not for public repo)
+.refactor-baseline/
