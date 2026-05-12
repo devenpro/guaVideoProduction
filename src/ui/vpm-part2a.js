@@ -165,6 +165,142 @@
     return data;
   }
 
+  // Pending AI-extracted preferences awaiting user review (set by _openPrefDiffModal,
+  // consumed by 'apply-pref-diff'). Stored module-local so the modal can render
+  // without re-running the AI.
+  var _pendingPrefDiff = null;
+
+  // Render a side-by-side diff modal of AI-proposed preference values vs the
+  // current ones, with per-row Accept/Skip checkboxes. The 'apply-pref-diff'
+  // handler writes only the rows the user accepted.
+  function _openPrefDiffModal(proposed, originalText) {
+    if (!proposed || typeof proposed !== 'object') {
+      toast('AI returned no usable preferences. Try a more detailed description.', 'warning');
+      return;
+    }
+    var prefs = (S.data.start && S.data.start.preferences) || {};
+    var video = S.data.video || {};
+
+    // Field definitions for the diff. allow=function(value) checks validity.
+    var fields = [
+      { key: 'title',                target: 'video.title',                     label: 'Title',                  display: function(v) { return v; } },
+      { key: 'description',          target: 'video.description',               label: 'Description',            display: function(v) { return v; } },
+      { key: 'target_audience',      target: 'video.target_audience',           label: 'Target Audience',        display: function(v) { return v; } },
+      { key: 'language',             target: 'preferences.language',            label: 'Language',               display: function(v) { return _diffLabel(Constants.LANGUAGES, v); }, allow: function(v) { return !!Constants.LANGUAGES[v]; } },
+      { key: 'platforms',            target: 'preferences.platforms',           label: 'Target Platforms',       display: function(v) { return (v || []).map(function(p) { return _diffLabel(Constants.PLATFORMS, p); }).join(', '); }, isArray: true, allow: function(v) { return Array.isArray(v) && v.length && v.every(function(p) { return !!Constants.PLATFORMS[p]; }); } },
+      { key: 'aspect_ratio',         target: 'preferences.aspect_ratio',        label: 'Aspect Ratio',           display: function(v) { return _diffLabel(Constants.ASPECT_RATIOS, v); }, allow: function(v) { return !!Constants.ASPECT_RATIOS[v]; } },
+      { key: 'target_duration',      target: 'preferences.target_duration',     label: 'Target Duration',        display: function(v) { return v + 's'; }, allow: function(v) { return typeof v === 'number' && v > 0; } },
+      { key: 'audio_mode',           target: 'preferences.audio_mode',          label: 'Audio Mode',             display: function(v) { return _diffLabel(Constants.AUDIO_MODES, v); }, allow: function(v) { return !!Constants.AUDIO_MODES[v]; } },
+      { key: 'production_mode',      target: 'preferences.production_mode',     label: 'Production Mode',        display: function(v) { return _diffLabel(Constants.PRODUCTION_MODES, v); }, allow: function(v) { return !!Constants.PRODUCTION_MODES[v]; } },
+      { key: 'presenter_preference', target: 'preferences.presenter_preference',label: 'Presenter Preference',   display: function(v) { return _diffLabel(Constants.PRESENTER_PREFS, v); }, allow: function(v) { return !!Constants.PRESENTER_PREFS[v]; } },
+      { key: 'video_style',          target: 'preferences.video_style',         label: 'Video Style',            display: function(v) { return _diffLabel(Constants.VIDEO_STYLES, v); }, allow: function(v) { return !!Constants.VIDEO_STYLES[v]; } },
+      { key: 'tone',                 target: 'preferences.tone',                label: 'Tone',                   display: function(v) { return _diffLabel(Constants.TONES, v); }, allow: function(v) { return !!Constants.TONES[v]; } },
+      { key: 'keywords',             target: 'video.keywords',                  label: 'Keywords',               display: function(v) { return (v || []).join(', '); }, isArray: true }
+    ];
+
+    // Build rows
+    var rows = [];
+    var acceptableCount = 0;
+    for (var i = 0; i < fields.length; i++) {
+      var f = fields[i];
+      var raw = proposed[f.key];
+      var hasValue = f.isArray ? (Array.isArray(raw) && raw.length) : (raw !== '' && raw !== null && raw !== undefined && raw !== 0 && !(typeof raw === 'number' && isNaN(raw)));
+      if (!hasValue) continue;
+      var valid = f.allow ? f.allow(raw) : true;
+      if (!valid) continue;
+      var current;
+      if (f.target.indexOf('preferences.') === 0) current = prefs[f.target.slice('preferences.'.length)];
+      else current = video[f.target.slice('video.'.length)];
+      var unchanged = JSON.stringify(current) === JSON.stringify(raw);
+      rows.push({ field: f, proposed: raw, current: current, unchanged: unchanged });
+      if (!unchanged) acceptableCount++;
+    }
+
+    if (!rows.length) {
+      toast('AI could not extract any preferences from that text. Try adding more detail.', 'info');
+      return;
+    }
+    if (!acceptableCount) {
+      toast('AI suggestions all match your current preferences — nothing to apply', 'info');
+      return;
+    }
+
+    _pendingPrefDiff = { rows: rows, originalText: originalText || '' };
+
+    var body = '';
+    body += '<p class="vpm-text-sm vpm-text-muted" style="margin-bottom:12px">' + icon('wand-magic-sparkles') + ' Review AI-extracted values. Uncheck any you want to skip — only checked rows will be applied.</p>';
+    body += '<div class="vpm-pref-diff-actions" style="display:flex;gap:8px;margin-bottom:10px">';
+    body += '<button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="pref-diff-toggle-all" data-state="on">' + icon('check-double') + ' Accept All</button>';
+    body += '<button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="pref-diff-toggle-all" data-state="off">' + icon('xmark') + ' Skip All</button>';
+    body += '</div>';
+    body += '<table class="vpm-pref-diff-table"><thead><tr><th style="width:32px">Use</th><th>Field</th><th>Current</th><th>AI Suggests</th></tr></thead><tbody>';
+    for (var r = 0; r < rows.length; r++) {
+      var row = rows[r];
+      var checked = row.unchanged ? '' : ' checked';
+      var disabled = row.unchanged ? ' disabled' : '';
+      body += '<tr class="' + (row.unchanged ? 'vpm-pref-diff-row-same' : 'vpm-pref-diff-row-diff') + '">';
+      body += '<td><input type="checkbox" class="vpm-pref-diff-cb" data-idx="' + r + '"' + checked + disabled + '></td>';
+      body += '<td><strong>' + esc(row.field.label) + '</strong></td>';
+      body += '<td class="vpm-text-muted">' + esc(row.field.display(row.current) || '—') + '</td>';
+      body += '<td>' + (row.unchanged ? '<span class="vpm-text-muted">(same)</span>' : esc(row.field.display(row.proposed))) + '</td>';
+      body += '</tr>';
+    }
+    body += '</tbody></table>';
+
+    openModal(icon('wand-magic-sparkles') + ' AI Preference Suggestions', body, {
+      size: 'lg',
+      saveLabel: 'Apply Selected',
+      onSave: function() {
+        if (!_pendingPrefDiff) { closeModal(); return; }
+        var applied = 0;
+        S.data.start.preferences = S.data.start.preferences || {};
+        $('.vpm-pref-diff-cb').each(function() {
+          var $cb = $(this);
+          if (!$cb.is(':checked') || $cb.is(':disabled')) return;
+          var idx = parseInt($cb.data('idx'), 10);
+          var row = _pendingPrefDiff.rows[idx]; if (!row) return;
+          var target = row.field.target;
+          if (target.indexOf('preferences.') === 0) {
+            S.data.start.preferences[target.slice('preferences.'.length)] = row.proposed;
+            if (target === 'preferences.platforms' && Array.isArray(row.proposed) && row.proposed.length) {
+              S.data.start.preferences.platform = row.proposed[0];
+              var pdef = Constants.PLATFORMS[row.proposed[0]];
+              if (pdef && pdef.defaultAspect && !S.data.start.preferences.aspect_ratio) {
+                S.data.start.preferences.aspect_ratio = pdef.defaultAspect;
+              }
+            }
+          } else {
+            S.data.video[target.slice('video.'.length)] = row.proposed;
+          }
+          applied++;
+        });
+        if (applied) {
+          S.data.start.raw_input = _pendingPrefDiff.originalText || S.data.start.raw_input || '';
+          S.data.start.import_source = {
+            type: 'ai-extracted', imported_at: new Date().toISOString(),
+            fields_mapped: _pendingPrefDiff.rows.filter(function(r) { return !r.unchanged; }).map(function(r) { return r.field.key; })
+          };
+          if (window._vpmLogActivity) window._vpmLogActivity('ai_prefs_applied', applied + ' preference(s) applied from AI extraction');
+          if (window._vpmSnapshot) window._vpmSnapshot('AI preference extraction');
+          syncToTextarea();
+          S.startStep = 'preferences';
+          render();
+          toast('Applied ' + applied + ' preference' + (applied === 1 ? '' : 's') + '. Review them below.', 'success');
+        } else {
+          toast('No preferences selected. Nothing applied.', 'info');
+        }
+        _pendingPrefDiff = null;
+        closeModal();
+      }
+    });
+  }
+
+  function _diffLabel(map, key) {
+    if (!key) return '';
+    if (map && map[key] && map[key].label) return map[key].label;
+    return String(key);
+  }
+
 
   // ============================================================
   // SECTION 3: UNDO/REDO
@@ -379,16 +515,16 @@
   function _renderStartImport() {
     var st = S.data.start || {};
     var html = '';
+    if (!S._startImportTab) S._startImportTab = 'describe';
 
     // Hero
     html += '<div class="vpm-start-hero"><div class="vpm-start-icon">' + icon('file-import') + '</div>';
-    html += '<h1 class="vpm-start-title">Import Video Plan</h1>';
-    html += '<p class="vpm-start-desc">Import your video plan from YouTube Planner or another planning tool to begin production.</p></div>';
+    html += '<h1 class="vpm-start-title">Start Your Video</h1>';
+    html += '<p class="vpm-start-desc">Describe your idea in plain text or paste an existing plan. AI will pre-fill your preferences so you can launch in seconds.</p></div>';
 
-    // If already imported, show banner to continue
     if (st.import_source) {
       html += '<div class="vpm-info-banner vpm-info-banner-success" style="display:flex;align-items:center;gap:12px">';
-      html += icon('circle-check') + ' <span><strong>Data imported from Video Planner</strong>';
+      html += icon('circle-check') + ' <span><strong>Data imported</strong>';
       var mapped = st.import_source.fields_mapped || [];
       if (mapped.length) html += ' — ' + mapped.length + ' fields mapped';
       html += '</span>';
@@ -396,22 +532,32 @@
       html += '</div>';
     }
 
-    // Import panel (inline, not modal)
     html += '<div class="vpm-panel vpm-start-import-panel">';
-    html += '<div class="vpm-panel-title">' + icon('file-import') + ' Import Video Planner JSON</div>';
+    html += '<div class="vpm-panel-title">' + icon('file-import') + ' Tell us about your video</div>';
 
-    // Tabs
+    // 3 tabs: Describe (default), Paste JSON, Upload File
     html += '<div class="vpm-inner-tabs" style="margin-bottom:16px">';
-    html += '<button class="vpm-inner-tab' + (S._startImportTab !== 'upload' ? ' vpm-inner-tab-active' : '') + '" data-action="start-import-tab" data-tab="paste">' + icon('clipboard') + ' Paste JSON</button>';
+    html += '<button class="vpm-inner-tab' + (S._startImportTab === 'describe' ? ' vpm-inner-tab-active' : '') + '" data-action="start-import-tab" data-tab="describe">' + icon('wand-magic-sparkles') + ' Describe Your Video</button>';
+    html += '<button class="vpm-inner-tab' + (S._startImportTab === 'paste' ? ' vpm-inner-tab-active' : '') + '" data-action="start-import-tab" data-tab="paste">' + icon('clipboard') + ' Paste Planner JSON</button>';
     html += '<button class="vpm-inner-tab' + (S._startImportTab === 'upload' ? ' vpm-inner-tab-active' : '') + '" data-action="start-import-tab" data-tab="upload">' + icon('upload') + ' Upload File</button>';
     html += '</div>';
 
-    // Paste area
-    html += '<div class="vpm-import-tab-pane"' + (S._startImportTab === 'upload' ? ' style="display:none"' : '') + ' data-start-import-tab="paste">';
-    html += '<textarea class="vpm-textarea" id="vpmStartImportJson" rows="14" style="font-family:var(--vpm-font-mono);font-size:12px" placeholder=\'Paste your Video Planner JSON here...\n\n{\n  "title": "...",\n  "description": "...",\n  "audience": "...",\n  "tone": "...",\n  "script_sections": [...],\n  "research": { ... }\n}\'></textarea>';
-    html += '</div>';
+    // Describe tab — free text + AI extraction
+    html += '<div class="vpm-import-tab-pane"' + (S._startImportTab !== 'describe' ? ' style="display:none"' : '') + ' data-start-import-tab="describe">';
+    html += '<p class="vpm-text-sm vpm-text-muted" style="margin-bottom:8px">Describe your video idea, target audience, tone, platform, length — anything you know. AI will infer the preferences and show you the proposed values for review before applying.</p>';
+    html += '<textarea class="vpm-textarea" id="vpmStartDescribeText" rows="10" placeholder="Example: A 90-second YouTube Short explaining how solo founders can use AI tools to ship faster. Energetic tone, single AI presenter, vertical format, English.">' + esc(st.raw_input || '') + '</textarea>';
+    html += '<div style="margin-top:12px;text-align:right">';
+    html += '<button class="vpm-btn vpm-btn-ai vpm-btn-lg" data-action="start-ai-extract">' + icon('wand-magic-sparkles') + ' Auto-fill Preferences with AI</button>';
+    html += '</div></div>';
 
-    // Upload area
+    // Paste JSON tab
+    html += '<div class="vpm-import-tab-pane"' + (S._startImportTab !== 'paste' ? ' style="display:none"' : '') + ' data-start-import-tab="paste">';
+    html += '<textarea class="vpm-textarea" id="vpmStartImportJson" rows="14" style="font-family:var(--vpm-font-mono);font-size:12px" placeholder=\'Paste your Video Planner JSON here...\'></textarea>';
+    html += '<div style="margin-top:12px;text-align:right">';
+    html += '<button class="vpm-btn vpm-btn-ai vpm-btn-lg" data-action="start-execute-import">' + icon('file-import') + ' Import & Continue to Preferences</button>';
+    html += '</div></div>';
+
+    // Upload tab
     html += '<div class="vpm-import-tab-pane"' + (S._startImportTab !== 'upload' ? ' style="display:none"' : '') + ' data-start-import-tab="upload">';
     html += '<div class="vpm-upload-zone" id="vpmStartUploadZone">';
     html += '<div class="vpm-upload-zone-icon">' + icon('cloud-arrow-up') + '</div>';
@@ -420,13 +566,12 @@
     html += '<input type="file" accept=".json,application/json" id="vpmStartFileInput" style="display:none">';
     html += '</div></div>';
 
-    // Preview
     html += '<div id="vpmStartImportPreview" style="margin-top:12px"></div>';
-
-    // Action
-    html += '<div style="margin-top:16px;text-align:right">';
-    html += '<button class="vpm-btn vpm-btn-ai vpm-btn-lg" data-action="start-execute-import">' + icon('file-import') + ' Import & Continue to Preferences</button>';
     html += '</div>';
+
+    // Skip option
+    html += '<div style="text-align:center;margin-top:16px">';
+    html += '<button class="vpm-btn vpm-btn-link" data-action="start-goto-step" data-step="preferences">Skip — set preferences manually ' + icon('arrow-right') + '</button>';
     html += '</div>';
 
     return html;
@@ -3623,6 +3768,28 @@
       $(this).addClass('vpm-inner-tab-active');
       $('[data-start-import-tab]').hide();
       $('[data-start-import-tab="' + tab + '"]').show();
+    });
+
+    // AI extract from free-text description (Describe tab)
+    $(document).off('click.vpm2a-saie').on('click.vpm2a-saie', '[data-action="start-ai-extract"]', function(e) {
+      e.preventDefault();
+      var txt = ($('#vpmStartDescribeText').val() || '').trim();
+      if (!txt) { toast('Type a description first', 'warning'); return; }
+      // Keep the raw input so it stays available across navigations & saves
+      S.data.start.raw_input = txt;
+      syncToTextarea();
+      if (!window._vpmExtractPreferencesFromText) { toast('AI module still loading — try again in a moment', 'info'); return; }
+      window._vpmExtractPreferencesFromText(txt, function(proposed) { _openPrefDiffModal(proposed, txt); });
+    });
+
+    // Diff modal — Accept All / Skip All
+    $(document).off('click.vpm2a-pdta').on('click.vpm2a-pdta', '[data-action="pref-diff-toggle-all"]', function(e) {
+      e.preventDefault();
+      var on = $(this).data('state') === 'on';
+      $('.vpm-pref-diff-cb').each(function() {
+        if ($(this).is(':disabled')) return;
+        $(this).prop('checked', on);
+      });
     });
 
     // Start Import — inline live preview

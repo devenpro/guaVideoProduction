@@ -136,6 +136,42 @@
   // SECTION 6: AI — IDEA ANALYSIS
   // ============================================================
 
+  // Extract video preferences from free-text input (or imported plan).
+  // Calls the LLM with a strict JSON schema, then hands the parsed object
+  // back to onResult so the caller can show a diff modal before applying.
+  function extractPreferencesFromText(rawText, onResult) {
+    var text = (rawText || '').trim();
+    if (!text) { toast('Paste or describe your video idea first', 'warning'); return; }
+    if (!LLMService.isConfigured()) {
+      toast('Configure an AI provider in Settings to use auto-mapping', 'warning');
+      return;
+    }
+    var sp = 'You extract structured video-production preferences from a short description. Return JSON only — no markdown, no prose.';
+    var prompt = '';
+    prompt += 'Read the description below and infer the user\'s video production preferences. For any field where the description is ambiguous or silent, return an empty string (or empty array). Do NOT invent confident values from thin air — be conservative.\n\n';
+    prompt += 'DESCRIPTION:\n"""\n' + text + '\n"""\n\n';
+    prompt += 'Allowed values:\n';
+    prompt += '- language: ' + Object.keys(Constants.LANGUAGES).join(' | ') + '\n';
+    prompt += '- platforms (array, 1+): ' + Object.keys(Constants.PLATFORMS).join(' | ') + '\n';
+    prompt += '- aspect_ratio: ' + Object.keys(Constants.ASPECT_RATIOS).join(' | ') + '\n';
+    prompt += '- target_duration (seconds, integer): typical 60–600\n';
+    prompt += '- audio_mode: ' + Object.keys(Constants.AUDIO_MODES).join(' | ') + '\n';
+    prompt += '- production_mode: ' + Object.keys(Constants.PRODUCTION_MODES).join(' | ') + '\n';
+    prompt += '- presenter_preference: ' + Object.keys(Constants.PRESENTER_PREFS).join(' | ') + '\n';
+    prompt += '- video_style: ' + Object.keys(Constants.VIDEO_STYLES).join(' | ') + '\n';
+    prompt += '- tone: ' + Object.keys(Constants.TONES).join(' | ') + '\n';
+    prompt += '- target_audience (free text, one short phrase)\n';
+    prompt += '- title (free text, short and concrete)\n';
+    prompt += '- description (one sentence)\n';
+    prompt += '- keywords (array of short tags)\n\n';
+    prompt += 'Return EXACTLY this JSON shape:\n';
+    prompt += '{"language":"","platforms":[],"aspect_ratio":"","target_duration":0,"audio_mode":"","production_mode":"","presenter_preference":"","video_style":"","tone":"","target_audience":"","title":"","description":"","keywords":[]}';
+    _callAIWithRetry(prompt, sp, 'extract-preferences', 'extract-preferences', true, function(r) {
+      _hideAIProgress();
+      try { onResult(r || {}); } catch (e) { console.error('[VPM] extract-preferences callback error:', e); }
+    });
+  }
+
   function analyzeIdea(actionId, ci) {
     var input = (S.data.start.raw_input || '').trim();
     if (!input) { toast('Enter your video idea first', 'warning'); return; }
@@ -1928,10 +1964,12 @@
   // SECTION 17: API EXPORTS
   // ============================================================
 
+  window._vpmExtractPreferencesFromText = extractPreferencesFromText;
   window._vpmPart2B = {
     LLMService: LLMService, BrandService: BrandService,
     isAIConfigured: LLMService.isConfigured.bind(LLMService),
     renderInlinePicker: LLMService.renderInlinePicker.bind(LLMService),
+    extractPreferencesFromText: extractPreferencesFromText,
     analyzeIdea: analyzeIdea, generateResearch: generateResearch,
     generateScript: generateScript, enhanceSection: enhanceSection,
     generateClips: generateClips, generateFramePrompt: generateFramePrompt,

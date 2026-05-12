@@ -170,6 +170,8 @@ body.vpm-active .region-breadcrumb, body.vpm-active .page-title-wrapper, body.vp
 .vpm-btn-outline:hover { border-color: var(--vpm-primary); color: var(--vpm-primary); background: var(--vpm-primary-subtle); }
 .vpm-btn-ai { background: linear-gradient(135deg, #8b5cf6, #ec4899); color: var(--vpm-text-inverse); border: none; font-weight: 700; }
 .vpm-btn-ai:hover { box-shadow: 0 4px 16px rgba(139,92,246,0.35); filter: brightness(1.1); transform: translateY(-1px); }
+.vpm-btn-link { background: transparent; border: none; color: var(--vpm-primary); padding: 4px 8px; font-weight: 500; }
+.vpm-btn-link:hover { color: var(--vpm-primary); text-decoration: underline; background: transparent; }
 .vpm-btn-danger { color: var(--vpm-error); border-color: var(--vpm-error); background: transparent; }
 .vpm-btn-danger:hover { background: var(--vpm-error); color: var(--vpm-text-inverse); border-color: var(--vpm-error); }
 .vpm-btn-success { background: var(--vpm-success); color: var(--vpm-text-inverse); border-color: var(--vpm-success); }

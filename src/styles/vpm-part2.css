@@ -68,6 +68,14 @@
 .vpm-prefs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--vpm-space-4); }
 .vpm-pref-group { }
 
+/* Start — AI preference diff modal table */
+.vpm-pref-diff-table { width: 100%; border-collapse: collapse; font-size: var(--vpm-font-sm); }
+.vpm-pref-diff-table th { text-align: left; padding: 8px; border-bottom: 1px solid var(--vpm-border); background: var(--vpm-gray-50); font-weight: 600; color: var(--vpm-text-secondary); }
+.vpm-pref-diff-table td { padding: 10px 8px; border-bottom: 1px solid var(--vpm-gray-100); vertical-align: top; }
+.vpm-pref-diff-row-same td { opacity: 0.55; }
+.vpm-pref-diff-row-diff:hover { background: var(--vpm-primary-subtle); }
+.vpm-pref-diff-cb { width: 16px; height: 16px; cursor: pointer; }
+
 /* Start — Advanced options group (collapsible panels) */
 .vpm-start-advanced-header {
   display: flex;
