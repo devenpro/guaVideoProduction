@@ -4,6 +4,7 @@
     "src/core/state.js",
     "src/core/vpm-part1.js",
     "src/ui/vpm-part2a.js",
+    "src/ai/brand-service.js",
     "src/ai/prompt-templates/seedance.js",
     "src/ai/prompt-templates/veo-3.1.js",
     "src/ai/prompt-templates/kling.js",
