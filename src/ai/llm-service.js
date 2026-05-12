@@ -233,7 +233,8 @@ var AI_ACTIONS = {
   'generate-chapters':    { label: 'Generate Chapters',          icon: 'clock',               size: 'small' },
   'generate-thumbnails':  { label: 'Generate Thumbnail Ideas',   icon: 'image',               size: 'big' },
   'regen-research':       { label: 'Regenerate Research Section', icon: 'magnifying-glass',   size: 'small' },
-  'regen-thumbnail':      { label: 'Regenerate Thumbnail Idea',  icon: 'image',               size: 'small' }
+  'regen-thumbnail':      { label: 'Regenerate Thumbnail Idea',  icon: 'image',               size: 'small' },
+  'extract-preferences':  { label: 'Extract Preferences from Idea', icon: 'wand-magic-sparkles', size: 'big' }
 };
 
 var _aiProgressActive = false, _aiProgressTimer = null, _aiProgressStartTime = 0, _aiAbortController = null;

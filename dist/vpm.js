@@ -1,4 +1,4 @@
-/*! VPM JS bundle — built 2026-05-12T02:59:32.345Z */
+/*! VPM JS bundle — built 2026-05-12T06:31:31.237Z */
 
 /* ===== src/core/constants.js ===== */
 /**
@@ -357,7 +357,8 @@
       settings: {}, aiPreferences: {},
       lookLibrary: [], environmentLibrary: [], sceneLibrary: [],
       brandOverrides: {},
-      studioRequirements: {}
+      studioRequirements: {},
+      _ui: {}
     },
     activity: [],
 
@@ -824,11 +825,32 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
       parseBrandStudioLibrary();
       _observeBrandStudioLibrary();
       buildMaps();
+      // Restore last UI state (current stage + sub-tabs + selected clip) BEFORE first render
+      // so the app reopens exactly where the user left off.
+      var _resumed = false;
+      try { _resumed = _restoreUIState(); } catch (_re) { console.warn('[VPM] UI restore failed:', _re && _re.message); }
       // Auto-hide sidebar on mobile viewports
       if (window.innerWidth < 992) S.sidebarHidden = true;
       renderApp();
       setupEventHandlers();
       startAutoSave();
+      // Resume toast — shown once on init when restored to a non-Start stage.
+      if (_resumed) {
+        var lbl = (APP_STAGES[S.currentStage] && APP_STAGES[S.currentStage].label) || (UTILITY_VIEWS[S.currentStage] && UTILITY_VIEWS[S.currentStage].label) || S.currentStage;
+        // Delay so toast container is fully mounted
+        setTimeout(function() { try { toast('Resumed at ' + lbl, 'info', 3000); } catch (_te) {} }, 400);
+      }
+
+      // First-load keyboard shortcuts hint (one-time per project)
+      if (S.meta._ui && !S.meta._ui.shortcut_hint_shown) {
+        setTimeout(function() {
+          try {
+            toast('Tip: press ? anytime for keyboard shortcuts · 1–7 jumps stages · Ctrl+S saves', 'info', 6000);
+            S.meta._ui.shortcut_hint_shown = true;
+            syncToTextarea();
+          } catch (_te2) {}
+        }, _resumed ? 4000 : 1200);
+      }
     } catch (e) {
       console.error('[VPM] Init error:', e.message, e.stack);
       S._initializing = false;
@@ -1054,6 +1076,7 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     if (!S.meta.sceneLibrary) S.meta.sceneLibrary = [];
     if (!S.meta.brandOverrides) S.meta.brandOverrides = {};
     if (!S.meta.studioRequirements) S.meta.studioRequirements = {};
+    S.meta._ui = $.extend(true, {}, def._ui, S.meta._ui || {});
 
     // Migrate deprecated model IDs
     var _modelFixes = {
@@ -1417,6 +1440,91 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     return S.mode === 'standard' ? STAGE_ORDER_STANDARD : STAGE_ORDER_ADVANCED;
   }
 
+  // Capture current UI state (stage + sub-state) into S.meta._ui.
+  // Cheap — only mutates the object; does NOT mark dirty or write the textarea.
+  // syncToTextarea() calls this before writing so saved JSON includes the latest UI state.
+  function _captureUIState() {
+    if (!S.meta) return;
+    var ui = S.meta._ui = S.meta._ui || {};
+    ui.last_stage = S.currentStage || 'start';
+    ui.start_step = S.startStep || '';
+    ui.selected_clip_id = S.selectedClipId || '';
+    ui.clip_detail_tab = S.currentClipDetailTab || '';
+    ui.studio_tab = S.currentStudioTab || '';
+    ui.settings_tab = S.currentSettingsTab || '';
+    ui.platform_tab = S.currentPlatformTab || '';
+    ui.thumbnail_step = S.thumbnailStep || '';
+    if (!Array.isArray(ui.visited_stages)) ui.visited_stages = [];
+    ui.updated_at = new Date().toISOString();
+  }
+
+  // Restore UI state from S.meta._ui into S.* fields. Called in init() before renderApp().
+  // Validates that the restored stage is reachable in the current mode and falls back to 'start' otherwise.
+  // Returns true if a non-default stage was restored (used to decide whether to show the "Resume" toast).
+  function _restoreUIState() {
+    var ui = (S.meta && S.meta._ui) || {};
+    var restored = false;
+    if (ui.last_stage) {
+      var stageOrder = getStageOrder();
+      if (APP_STAGES[ui.last_stage] && stageOrder.indexOf(ui.last_stage) !== -1) {
+        S.currentStage = ui.last_stage;
+        restored = ui.last_stage !== 'start';
+      } else if (UTILITY_VIEWS[ui.last_stage]) {
+        S.currentStage = ui.last_stage;
+        restored = true;
+      }
+    }
+    if (ui.start_step) S.startStep = ui.start_step;
+    if (ui.clip_detail_tab) S.currentClipDetailTab = ui.clip_detail_tab;
+    if (ui.studio_tab) S.currentStudioTab = ui.studio_tab;
+    if (ui.settings_tab) S.currentSettingsTab = ui.settings_tab;
+    if (ui.platform_tab) S.currentPlatformTab = ui.platform_tab;
+    if (ui.thumbnail_step) S.thumbnailStep = ui.thumbnail_step;
+    if (ui.selected_clip_id) {
+      var clips = (S.data && S.data.clips) || [];
+      for (var i = 0; i < clips.length; i++) {
+        if (clips[i].id === ui.selected_clip_id) { S.selectedClipId = ui.selected_clip_id; break; }
+      }
+    }
+    return restored;
+  }
+
+  // Auto-mark prior stage complete when user navigates forward AND prior stage has min content.
+  // Returns the stage that was auto-confirmed (or '' if nothing changed).
+  function _maybeAutoConfirmPriorStage(fromStage, toStage) {
+    if (!fromStage || !toStage || fromStage === toStage) return '';
+    var stageOrder = getStageOrder();
+    var fromIdx = stageOrder.indexOf(fromStage), toIdx = stageOrder.indexOf(toStage);
+    if (fromIdx < 0 || toIdx <= fromIdx) return ''; // not a forward move
+    var d = S.data || {};
+    if (fromStage === 'research') {
+      var r = d.research || {};
+      if (!r.generated && (r.audience_insights || r.competitor_analysis || r.trending_angles || r.content_strategy)) {
+        r.generated = true; r.generated_at = r.generated_at || new Date().toISOString();
+        logActivity && logActivity('research_auto_confirmed', 'Research auto-marked complete on stage advance');
+        return 'research';
+      }
+    } else if (fromStage === 'blueprint') {
+      var bp = d.blueprint || {};
+      var hasSection = (bp.sections || []).some(function(s) { return (s.label || '').trim().length > 0; });
+      if (!bp.confirmed && hasSection) {
+        bp.confirmed = true; bp.confirmed_at = bp.confirmed_at || new Date().toISOString();
+        logActivity && logActivity('blueprint_auto_confirmed', 'Blueprint auto-marked complete on stage advance');
+        return 'blueprint';
+      }
+    } else if (fromStage === 'script') {
+      var sc = d.script || {}, totalChars = 0;
+      var secs = sc.sections || [];
+      for (var si = 0; si < secs.length; si++) totalChars += (secs[si].content ? stripHtml(secs[si].content).trim().length : 0);
+      if (!sc.finalized && totalChars >= 20) {
+        sc.finalized = true; sc.finalized_at = sc.finalized_at || new Date().toISOString();
+        logActivity && logActivity('script_auto_confirmed', 'Script auto-marked complete on stage advance');
+        return 'script';
+      }
+    }
+    return '';
+  }
+
   function navigateToStage(stageId) {
     if (!APP_STAGES[stageId] && !UTILITY_VIEWS[stageId]) return;
     // Check if stage is available in current mode
@@ -1432,8 +1540,21 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
       toast(access.warning, 'info');
     }
 
+    var fromStage = S.currentStage;
     S.previousStage = S.currentStage;
     S.currentStage = stageId;
+
+    // Auto-mark prior stage complete on forward navigation (when it has minimum content).
+    // Explicit Confirm/Unlock buttons still work — this just removes the friction of leaving stages
+    // visibly "incomplete" after the user has clearly moved past them.
+    var autoConfirmed = _maybeAutoConfirmPriorStage(fromStage, stageId);
+
+    // Track visited stages for sidebar coach + future analytics
+    var ui = S.meta && S.meta._ui;
+    if (ui) {
+      if (!Array.isArray(ui.visited_stages)) ui.visited_stages = [];
+      if (ui.visited_stages.indexOf(stageId) === -1) ui.visited_stages.push(stageId);
+    }
 
     // Reset sub-state for clips
     if (stageId === 'clips' && !S.selectedClipId && S.data.clips && S.data.clips.length > 0) {
@@ -1441,6 +1562,18 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
       var firstClip = S.data.clips[0];
       var firstTrack = firstClip.track || (CLIP_TYPES[firstClip.type] || {}).track || 'ai';
       S.currentClipDetailTab = firstTrack === 'ai' ? 'script-config' : firstTrack === 'non-ai' ? 'planning' : 'template';
+    }
+
+    // Recompute completion flags every navigation so sidebar reflects the latest state
+    // (especially after an auto-confirm).
+    try { buildMaps(); } catch (_e) {}
+
+    // Persist new stage + sub-state immediately so a reload restores correctly
+    syncToTextarea();
+
+    if (autoConfirmed) {
+      var label = (APP_STAGES[autoConfirmed] && APP_STAGES[autoConfirmed].label) || autoConfirmed;
+      toast(label + ' marked complete', 'success', 2200);
     }
 
     // Render content + sidebar
@@ -1457,17 +1590,31 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     $sidebar.toggleClass('vpm-sidebar-collapsed', !!collapsed);
     // Update collapse button icon
     $sidebar.find('.vpm-sidebar-collapse-btn').attr('title', collapsed ? 'Expand' : 'Collapse').html(icon(collapsed ? 'chevron-right' : 'chevron-left'));
+    // Refresh overall project progress strip
+    var $prog = $sidebar.find('.vpm-sidebar-progress');
+    if ($prog.length) {
+      var _doneCnt2 = 0;
+      for (var _po2 = 0; _po2 < stageOrder.length; _po2++) { if (isStageComplete(stageOrder[_po2])) _doneCnt2++; }
+      var _curIdx2 = stageOrder.indexOf(S.currentStage); if (_curIdx2 === -1) _curIdx2 = 0;
+      var _pct2 = Math.round((_doneCnt2 / stageOrder.length) * 100);
+      $prog.find('.vpm-sidebar-progress-label').html('<span>Stage ' + (_curIdx2 + 1) + '/' + stageOrder.length + '</span><span class="vpm-text-muted">' + _pct2 + '%</span>');
+      $prog.find('.vpm-sidebar-progress-fill').css('width', _pct2 + '%');
+      $prog.attr('title', _doneCnt2 + ' of ' + stageOrder.length + ' stages complete');
+    }
     // Rebuild nav content
     var $nav = $sidebar.find('.vpm-nav');
     if (!$nav.length) return;
     var html = '<div class="vpm-nav-label"><span class="vpm-nav-label-text">STAGES</span></div>';
+    var _visited = (S.meta && S.meta._ui && Array.isArray(S.meta._ui.visited_stages)) ? S.meta._ui.visited_stages : [];
     for (var si = 0; si < stageOrder.length; si++) {
       var key = stageOrder[si], stage = APP_STAGES[key], status = getStageStatus(key);
       var isActive = S.currentStage === key, isDone = status === 'complete', isFuture = status === 'not-started';
+      var isVisited = !isActive && !isDone && _visited.indexOf(key) !== -1;
       var progress = getStageProgress(key);
-      html += '<button class="vpm-nav-item' + (isActive ? ' vpm-nav-active' : '') + (isDone ? ' vpm-nav-done' : '') + (isFuture ? ' vpm-nav-future' : '') + '" data-action="navigate" data-stage="' + key + '" title="' + esc(stage.label) + '">';
+      html += '<button class="vpm-nav-item' + (isActive ? ' vpm-nav-active' : '') + (isDone ? ' vpm-nav-done' : '') + (isVisited ? ' vpm-nav-visited' : '') + (isFuture ? ' vpm-nav-future' : '') + '" data-action="navigate" data-stage="' + key + '" title="' + esc(stage.label) + (isVisited ? ' (visited — not confirmed)' : '') + '">';
       html += '<div class="vpm-nav-dot">';
       if (isDone) html += icon('check');
+      else if (isVisited) html += icon('circle-dot');
       else html += '<span class="vpm-nav-step">' + (si + 1) + '</span>';
       html += '</div>';
       html += '<div class="vpm-nav-text"><div class="vpm-nav-name">' + esc(stage.label) + '</div>';
@@ -1593,7 +1740,13 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
   }
 
   function renderAppShell() {
-    return renderHeader() + '<div class="vpm-body">' + renderSidebar() + '<div class="vpm-main"><div class="vpm-content" id="vpmContent"></div></div></div><div id="vpmToasts" class="vpm-toast-container"></div>';
+    return renderHeader() + '<div class="vpm-body">' + renderSidebar() + '<div class="vpm-main"><div class="vpm-content" id="vpmContent"></div></div>' + renderCoachPanelShell() + '</div><div id="vpmToasts" class="vpm-toast-container"></div>';
+  }
+
+  // Right-rail Coach panel shell. _refreshCoachPanel() fills #vpmCoach with stage-specific content on every render.
+  function renderCoachPanelShell() {
+    var collapsed = !!(S.meta && S.meta._ui && S.meta._ui.coach_collapsed);
+    return '<aside class="vpm-coach' + (collapsed ? ' vpm-coach-collapsed' : '') + '" id="vpmCoach"></aside>';
   }
 
   function renderHeader() {
@@ -1607,6 +1760,7 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     html += '</div><div class="vpm-header-center">';
     if (v.title) html += '<span class="vpm-header-project">' + esc(truncate(v.title, 50)) + '</span>';
     html += '</div><div class="vpm-header-right">' + statusBadge(S.computedStatus);
+    html += '<button class="vpm-btn-icon vpm-coach-header-toggle" data-action="toggle-coach" title="Toggle Coach panel">' + icon('compass') + '</button>';
     html += '<button class="vpm-btn vpm-btn-primary vpm-btn-sm" id="vpmSaveNodeBtn">' + icon('floppy-disk') + ' Save</button>';
     html += '<span class="vpm-last-saved" id="vpmLastSaved">' + (S.lastSaved ? icon('circle-check') + ' ' + formatRelativeTime(S.lastSaved) : '') + '</span>';
     html += '</div></div>';
@@ -1624,15 +1778,29 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     html += '<div class="vpm-sidebar-brand">' + icon('film') + '<span class="vpm-sidebar-brand-text">VPM</span></div>';
     html += '<button class="vpm-sidebar-collapse-btn" data-action="toggle-sidebar-collapse" title="' + (collapsed ? 'Expand' : 'Collapse') + '">' + icon(collapsed ? 'chevron-right' : 'chevron-left') + '</button>';
     html += '</div>';
+
+    // Overall project progress strip
+    var _doneCnt = 0;
+    for (var _po = 0; _po < stageOrder.length; _po++) { if (isStageComplete(stageOrder[_po])) _doneCnt++; }
+    var _curIdx = stageOrder.indexOf(S.currentStage); if (_curIdx === -1) _curIdx = 0;
+    var _pct = Math.round((_doneCnt / stageOrder.length) * 100);
+    html += '<div class="vpm-sidebar-progress" title="' + _doneCnt + ' of ' + stageOrder.length + ' stages complete">';
+    html += '<div class="vpm-sidebar-progress-label"><span>Stage ' + (_curIdx + 1) + '/' + stageOrder.length + '</span><span class="vpm-text-muted">' + _pct + '%</span></div>';
+    html += '<div class="vpm-sidebar-progress-track"><div class="vpm-sidebar-progress-fill" style="width:' + _pct + '%"></div></div>';
+    html += '</div>';
+
     html += '<nav class="vpm-nav">';
     html += '<div class="vpm-nav-label"><span class="vpm-nav-label-text">STAGES</span></div>';
+    var _visited2 = (S.meta && S.meta._ui && Array.isArray(S.meta._ui.visited_stages)) ? S.meta._ui.visited_stages : [];
     for (var si = 0; si < stageOrder.length; si++) {
       var key = stageOrder[si], stage = APP_STAGES[key], status = getStageStatus(key);
       var isActive = S.currentStage === key, isDone = status === 'complete', isFuture = status === 'not-started';
+      var isVisited = !isActive && !isDone && _visited2.indexOf(key) !== -1;
       var progress = getStageProgress(key);
-      html += '<button class="vpm-nav-item' + (isActive ? ' vpm-nav-active' : '') + (isDone ? ' vpm-nav-done' : '') + (isFuture ? ' vpm-nav-future' : '') + '" data-action="navigate" data-stage="' + key + '" title="' + esc(stage.label) + '">';
+      html += '<button class="vpm-nav-item' + (isActive ? ' vpm-nav-active' : '') + (isDone ? ' vpm-nav-done' : '') + (isVisited ? ' vpm-nav-visited' : '') + (isFuture ? ' vpm-nav-future' : '') + '" data-action="navigate" data-stage="' + key + '" title="' + esc(stage.label) + (isVisited ? ' (visited — not confirmed)' : '') + '">';
       html += '<div class="vpm-nav-dot">';
       if (isDone) html += icon('check');
+      else if (isVisited) html += icon('circle-dot');
       else html += '<span class="vpm-nav-step">' + (si + 1) + '</span>';
       html += '</div>';
       html += '<div class="vpm-nav-text"><div class="vpm-nav-name">' + esc(stage.label) + '</div>';
@@ -1688,7 +1856,202 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     _updateLastSaved();
   }
 
-  function render() { _refreshSidebarNav(); renderCurrentView(); }
+  function render() { _captureUIState(); _refreshSidebarNav(); _refreshCoachPanel(); renderCurrentView(); _updateLastSaved(); }
+
+  // ============================================================
+  // COACH PANEL — stage-aware guide that lives in the right rail
+  // ============================================================
+
+  // Returns content for the current stage: { title, description, checklist, tips, nextAction }
+  function _getCoachContent() {
+    var d = S.data || {};
+    var p = (d.start && d.start.preferences) || {};
+    var stage = S.currentStage;
+    var startStep = S.startStep || 'import';
+    var c = { stage: stage, title: '', description: '', checklist: [], tips: [], nextAction: null };
+    switch (stage) {
+      case 'start': {
+        c.title = 'Start — Tell the app what you\'re making';
+        c.description = 'These choices set the direction for every later stage. The AI uses them when it generates research, scripts, scenes and prompts.';
+        c.checklist = [
+          { done: !!(d.start && d.start.raw_input), label: 'Describe or import your video' },
+          { done: !!p.language, label: 'Pick a language' },
+          { done: !!(p.platforms && p.platforms.length), label: 'Choose target platform(s)' },
+          { done: !!p.target_duration, label: 'Set a target duration' },
+          { done: !!p.audio_mode, label: 'Choose how audio is produced' },
+          { done: !!(d.start && d.start.processed), label: 'Launch production' }
+        ];
+        c.tips = ['Use the Describe tab + Auto-fill AI to populate the 9 primary preferences in seconds.',
+                  'Advanced options are collapsed — defaults work for most videos.'];
+        if (startStep === 'import') c.nextAction = { label: 'Set Preferences', action: 'start-goto-step', step: 'preferences' };
+        else if (startStep === 'preferences') c.nextAction = { label: 'Review & Launch', action: 'start-goto-step', step: 'review' };
+        else c.nextAction = { label: 'Launch Production', action: 'start-launch' };
+        break;
+      }
+      case 'research': {
+        var r = d.research || {};
+        c.title = 'Research — Sharpen the brief';
+        c.description = 'AI pulls audience insights, competitor angles, trends and content strategy based on your Start inputs.';
+        c.checklist = [
+          { done: !!r.generated, label: 'Generate research brief' },
+          { done: !!(r.audience_insights), label: 'Review audience insights' },
+          { done: !!(r.content_strategy), label: 'Review content strategy' },
+          { done: !!((r.sources || []).length), label: 'Add ≥1 reference source (optional)' }
+        ];
+        c.tips = ['The chip strip at the top shows which Start inputs feed the AI — click to revise any.',
+                  'Each panel has its own regenerate button if one needs a refresh.'];
+        c.nextAction = { label: 'Continue to Blueprint', action: 'navigate', stage: 'blueprint' };
+        break;
+      }
+      case 'blueprint': {
+        var bp = d.blueprint || {};
+        var hasSec = (bp.sections || []).some(function(s) { return (s.label || '').trim(); });
+        c.title = 'Blueprint — Outline the video';
+        c.description = 'Lay out the section flow and durations. The Script stage fills these sections with narration.';
+        c.checklist = [
+          { done: !!bp.title, label: 'Set a working title' },
+          { done: hasSec, label: 'Add at least one labeled section' },
+          { done: (bp.sections || []).length >= 3, label: '3+ sections for a complete arc (recommended)' },
+          { done: !!bp.confirmed, label: 'Confirm blueprint' }
+        ];
+        c.tips = ['Aim for 5–8 sections for a typical YouTube video, 2–3 for a Short.',
+                  'Click "Confirm" once you\'re happy with the structure.'];
+        c.nextAction = { label: bp.confirmed ? 'Continue to Script' : 'Confirm Blueprint', action: bp.confirmed ? 'navigate' : 'confirm-blueprint', stage: 'script' };
+        break;
+      }
+      case 'script': {
+        var sc = d.script || {};
+        var secs = sc.sections || [];
+        var totalChars = 0;
+        for (var i = 0; i < secs.length; i++) totalChars += (secs[i].content ? stripHtml(secs[i].content).trim().length : 0);
+        c.title = 'Script — Write the narration';
+        c.description = 'Fill each section. The AI can draft from scratch or enhance existing copy. When all sections feel right, finalize.';
+        c.checklist = [
+          { done: secs.length > 0, label: 'Blueprint sections imported' },
+          { done: totalChars >= 100, label: 'Total content ≥ ~100 chars' },
+          { done: secs.every(function(s) { return s.content && stripHtml(s.content).trim().length > 0; }), label: 'Every section has content' },
+          { done: !!sc.finalized, label: 'Finalize script' }
+        ];
+        c.tips = ['Use the Enhance button on a section to AI-polish what you already wrote.',
+                  'Word count and runtime estimate appear under each section.'];
+        c.nextAction = { label: sc.finalized ? (S.mode === 'advanced' ? 'Continue to Studio' : 'Continue to Clips') : 'Finalize Script', action: sc.finalized ? 'navigate' : 'finalize-script', stage: S.mode === 'advanced' ? 'studio' : 'clips' };
+        break;
+      }
+      case 'studio': {
+        c.title = 'Studio — Visual setup';
+        c.description = 'Define the looks, environments and scenes that AI clips will reference. The Brand Library you picked in Start seeds this.';
+        c.checklist = [
+          { done: (S.allLooks || []).length > 0, label: 'Add ≥1 look (character or style)' },
+          { done: (S.allEnvironments || []).length > 0, label: 'Add ≥1 environment' },
+          { done: (S.allScenes || []).length > 0, label: 'Add ≥1 scene (optional)' },
+          { done: !!S.studioReady, label: 'All entities marked ready' }
+        ];
+        c.tips = ['Looks + environments combine into scenes that AI clips can reuse for consistency.',
+                  'Brand Studio entities you selected in Start preferences are already available here.'];
+        c.nextAction = { label: 'Continue to Clips', action: 'navigate', stage: 'clips' };
+        break;
+      }
+      case 'clips': {
+        var clips = d.clips || [];
+        c.title = 'Clips — Build each shot';
+        c.description = 'Every section becomes one or more clips. AI clips get prompts and frames; non-AI clips get a brief.';
+        c.checklist = [
+          { done: clips.length > 0, label: 'Generate or add clips' },
+          { done: clips.length >= 2, label: 'At least 2 clips' },
+          { done: S.clipStats.aiDone + S.clipStats.nonAiDone + S.clipStats.templateDone >= clips.length / 2, label: 'Half of clips marked done' },
+          { done: !!S.productionComplete, label: 'All clips marked done' }
+        ];
+        c.tips = ['Select a clip in the list to open its detail editor with tabs.',
+                  'Use Generate Clip Breakdown to AI-create the full clip list from the script.'];
+        c.nextAction = { label: 'Continue to Publish', action: 'navigate', stage: 'publish' };
+        break;
+      }
+      case 'publish': {
+        var pub = d.publishing || {};
+        var yt = pub.youtube || {};
+        c.title = 'Publish — Ship it';
+        c.description = 'Generate YouTube metadata, pick a thumbnail, and export the project.';
+        c.checklist = [
+          { done: !!yt.title, label: 'YouTube title set' },
+          { done: !!yt.description, label: 'Description written' },
+          { done: !!(d.thumbnails && d.thumbnails.selected_idea_id), label: 'Thumbnail selected' },
+          { done: !!S.exported, label: 'Project exported' }
+        ];
+        c.tips = ['Generate YouTube Metadata uses your script + research to suggest a title, description and tags.',
+                  'Thumbnail workshop is a 3-step flow: ideas → chat → finalize.'];
+        c.nextAction = { label: 'Export Project', action: 'export-project' };
+        break;
+      }
+      case 'activity':
+      case 'settings':
+        c.title = APP_STAGES[stage] ? APP_STAGES[stage].label : (UTILITY_VIEWS[stage] ? UTILITY_VIEWS[stage].label : stage);
+        c.description = (UTILITY_VIEWS[stage] && UTILITY_VIEWS[stage].label) ? 'Utility view — your work isn\'t paused.' : '';
+        c.tips = ['Jump back to your last working stage with the sidebar.'];
+        break;
+    }
+    return c;
+  }
+
+  function _refreshCoachPanel() {
+    var $panel = $('#vpmCoach');
+    if (!$panel.length) return;
+    var ui = (S.meta && S.meta._ui) || {};
+    var collapsed = !!ui.coach_collapsed;
+    $panel.toggleClass('vpm-coach-collapsed', collapsed);
+
+    if (collapsed) {
+      $panel.html('<button class="vpm-coach-toggle vpm-coach-toggle-collapsed" data-action="toggle-coach" title="Show Coach">' + icon('lightbulb') + '</button>');
+      return;
+    }
+
+    var c = _getCoachContent();
+    var dismissedMap = ui.coach_dismissed || {};
+    if (dismissedMap[c.stage]) {
+      $panel.html('<div class="vpm-coach-collapsed-stub"><button class="vpm-coach-toggle" data-action="show-coach" data-stage="' + esc(c.stage) + '" title="Show Coach">' + icon('lightbulb') + ' Coach hidden for this stage</button></div>');
+      return;
+    }
+
+    var html = '';
+    html += '<div class="vpm-coach-header">';
+    html += '<span class="vpm-coach-title">' + icon('compass') + ' ' + esc(c.title || 'Coach') + '</span>';
+    html += '<div class="vpm-coach-header-actions">';
+    html += '<button class="vpm-btn-icon-sm" data-action="dismiss-coach" data-stage="' + esc(c.stage) + '" title="Hide for this stage">' + icon('xmark') + '</button>';
+    html += '<button class="vpm-btn-icon-sm" data-action="toggle-coach" title="Collapse">' + icon('chevron-right') + '</button>';
+    html += '</div></div>';
+
+    if (c.description) html += '<p class="vpm-coach-desc">' + esc(c.description) + '</p>';
+
+    if (c.checklist && c.checklist.length) {
+      html += '<div class="vpm-coach-section-title">' + icon('list-check') + ' Checklist</div>';
+      html += '<ul class="vpm-coach-checklist">';
+      for (var i = 0; i < c.checklist.length; i++) {
+        var ci = c.checklist[i];
+        html += '<li class="' + (ci.done ? 'vpm-coach-check-done' : 'vpm-coach-check-todo') + '">';
+        html += '<span class="vpm-coach-check-icon">' + icon(ci.done ? 'circle-check' : 'circle') + '</span>';
+        html += '<span>' + esc(ci.label) + '</span></li>';
+      }
+      html += '</ul>';
+    }
+
+    if (c.tips && c.tips.length) {
+      html += '<div class="vpm-coach-section-title">' + icon('lightbulb') + ' Tips</div>';
+      html += '<ul class="vpm-coach-tips">';
+      for (var t = 0; t < c.tips.length; t++) html += '<li>' + esc(c.tips[t]) + '</li>';
+      html += '</ul>';
+    }
+
+    if (c.nextAction) {
+      var na = c.nextAction;
+      var attrs = 'data-action="' + esc(na.action) + '"';
+      if (na.stage) attrs += ' data-stage="' + esc(na.stage) + '"';
+      if (na.step) attrs += ' data-step="' + esc(na.step) + '"';
+      html += '<div class="vpm-coach-next-action">';
+      html += '<button class="vpm-btn vpm-btn-primary vpm-btn-lg" ' + attrs + '>' + icon('arrow-right') + ' ' + esc(na.label) + '</button>';
+      html += '</div>';
+    }
+
+    $panel.html(html);
+  }
 
 
   // ============================================================
@@ -1933,6 +2296,33 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     });
     // Save
     $(document).off('click.vpm1-save').on('click.vpm1-save', '#vpmSaveNodeBtn', function() { triggerDrupalSave(); });
+    // Coach panel toggle (collapse/expand globally)
+    $(document).off('click.vpm1-coach').on('click.vpm1-coach', '[data-action="toggle-coach"]', function(e) {
+      e.preventDefault();
+      var ui = S.meta._ui = S.meta._ui || {};
+      ui.coach_collapsed = !ui.coach_collapsed;
+      syncToTextarea();
+      _refreshCoachPanel();
+    });
+    // Dismiss coach for current stage
+    $(document).off('click.vpm1-dcoach').on('click.vpm1-dcoach', '[data-action="dismiss-coach"]', function(e) {
+      e.preventDefault();
+      var stage = $(this).data('stage') || S.currentStage;
+      var ui = S.meta._ui = S.meta._ui || {};
+      ui.coach_dismissed = ui.coach_dismissed || {};
+      ui.coach_dismissed[stage] = true;
+      syncToTextarea();
+      _refreshCoachPanel();
+    });
+    // Show coach (after per-stage dismiss)
+    $(document).off('click.vpm1-scoach').on('click.vpm1-scoach', '[data-action="show-coach"]', function(e) {
+      e.preventDefault();
+      var stage = $(this).data('stage') || S.currentStage;
+      var ui = S.meta._ui = S.meta._ui || {};
+      if (ui.coach_dismissed) delete ui.coach_dismissed[stage];
+      syncToTextarea();
+      _refreshCoachPanel();
+    });
     // Clip selection
     $(document).off('click.vpm1-clip-sel').on('click.vpm1-clip-sel', '[data-action="select-clip"]', function() {
       var cid = $(this).data('clip-id'); if (!cid) return;
@@ -1962,6 +2352,7 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
 
   function syncToTextarea() {
     if (!S.$dataField || !S.$dataField.length) return;
+    _captureUIState();
     S.data.video.modified = new Date().toISOString();
     S.$dataField.val(JSON.stringify(S.data));
     S.$metaField.val(JSON.stringify(S.meta));
@@ -1990,8 +2381,14 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
   function _updateLastSaved() {
     var $el = $('#vpmLastSaved');
     if (!$el.length) return;
-    if (S.lastSaved) $el.html(icon('circle-check') + ' ' + formatRelativeTime(S.lastSaved));
-    else if (S.dirty) $el.html(icon('circle') + ' Unsaved');
+    $el.removeClass('vpm-last-saved-dirty vpm-last-saved-clean vpm-last-saved-idle');
+    if (S.dirty) {
+      $el.addClass('vpm-last-saved-dirty').attr('title', 'You have unsaved changes — click Save to persist').html(icon('circle-dot') + ' Unsaved');
+    } else if (S.lastSaved) {
+      $el.addClass('vpm-last-saved-clean').attr('title', 'Saved at ' + formatDate(S.lastSaved)).html(icon('circle-check') + ' Saved ' + formatRelativeTime(S.lastSaved));
+    } else {
+      $el.addClass('vpm-last-saved-idle').attr('title', '').html('');
+    }
   }
 
   // Undo/redo placeholder — wired up in Part 2A
@@ -2065,7 +2462,8 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
       aiPreferences: { appDefault: { provider: 'gemini', model: 'gemini-2.5-flash' }, lastProvider: '', lastModel: '', imageModel: 'imagen-3', videoModel: 'seedance', globalNegative: 'watermark, text overlay, logo, low quality, blurry, distorted, cartoon, anime', perAction: {}, lastCustomInstructions: {} },
       lookLibrary: [], environmentLibrary: [], sceneLibrary: [],
       brandOverrides: { enabled: false, name: '', tagline: '', primary_color: '', secondary_color: '', accent_color: '', voice: '', target_audience: '', logo_url: '', font_family: '' },
-      studioRequirements: {}
+      studioRequirements: {},
+      _ui: { last_stage: '', start_step: '', selected_clip_id: '', clip_detail_tab: '', studio_tab: '', settings_tab: '', platform_tab: '', thumbnail_step: '', visited_stages: [], updated_at: '' }
     };
   }
 
@@ -2270,6 +2668,8 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
   window._vpmSnapshot = snapshot;
   window._vpmBuildMaps = buildMaps;
   window._vpmSyncToTextarea = syncToTextarea;
+  window._vpmCaptureUIState = _captureUIState;
+  window._vpmRestoreUIState = _restoreUIState;
   window._vpmEvaluateClipStatus = evaluateClipStatus;
   window._vpmMaybeAdvanceClipStatus = maybeAdvanceClipStatus;
   window._vpmCalculateVideoStatus = calculateVideoStatus;
@@ -2470,13 +2870,51 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
   function renderResearchFull() {
     var res = S.data.research || {};
     var sources = res.sources || [];
+    var prefs = (S.data.start && S.data.start.preferences) || {};
+    var video = S.data.video || {};
 
     var html = '<div class="vpm-view"><div class="vpm-view-header"><div><h2 class="vpm-view-title">' + icon('magnifying-glass') + ' Research</h2>';
     html += '<p class="vpm-view-subtitle">AI-powered content research for better videos</p></div>';
     html += '<div class="vpm-btn-row">';
-    html += '<button class="vpm-btn vpm-btn-ai" data-action="ai-generate-research">' + icon('sparkles') + ' Generate Research Brief</button>';
+    html += '<button class="vpm-btn vpm-btn-ai" data-action="ai-generate-research">' + icon('sparkles') + ' ' + (res.generated ? 'Regenerate Brief' : 'Generate Research Brief') + '</button>';
     if (res.generated) html += '<span class="vpm-text-success vpm-text-sm">' + icon('circle-check') + ' Generated ' + formatRelativeTime(res.generated_at || '') + '</span>';
     html += '</div></div>';
+
+    // Chip strip: Start inputs feeding the brief — click to jump back to Start.
+    var chips = [];
+    if (video.target_audience) chips.push({ icon: 'users', label: 'Audience', value: video.target_audience });
+    var plats = prefs.platforms || (prefs.platform ? [prefs.platform] : []);
+    if (plats.length) {
+      var pls = plats.map(function(p) { var def = window._vpmConstants.PLATFORMS[p]; return def ? def.label : p; }).join(' · ');
+      chips.push({ icon: 'share-nodes', label: 'Platform', value: pls });
+    }
+    if (prefs.tone) { var tdef = window._vpmConstants.TONES[prefs.tone]; chips.push({ icon: 'face-smile', label: 'Tone', value: tdef ? tdef.label : prefs.tone }); }
+    if (prefs.target_duration) chips.push({ icon: 'clock', label: 'Duration', value: prefs.target_duration + 's' });
+    if (prefs.video_style) { var vdef = window._vpmConstants.VIDEO_STYLES[prefs.video_style]; chips.push({ icon: 'palette', label: 'Style', value: vdef ? vdef.label : prefs.video_style }); }
+    if (prefs.language) { var ldef = window._vpmConstants.LANGUAGES[prefs.language]; chips.push({ icon: 'file-lines', label: 'Language', value: ldef ? ldef.label : prefs.language }); }
+
+    if (chips.length) {
+      html += '<div class="vpm-research-source-chips" title="These Start inputs shape the AI research brief — click any chip to revise.">';
+      html += '<span class="vpm-research-source-chips-label">' + icon('sliders') + ' Brief inputs:</span>';
+      for (var ci = 0; ci < chips.length; ci++) {
+        var c = chips[ci];
+        html += '<button class="vpm-research-source-chip" data-action="navigate" data-stage="start" title="Edit ' + esc(c.label) + ' in Start">';
+        html += icon(c.icon) + ' <span class="vpm-research-source-chip-label">' + esc(c.label) + ':</span> ' + esc(c.value);
+        html += '</button>';
+      }
+      html += '</div>';
+    }
+
+    // Stale-banner: Start preferences changed since this brief was generated.
+    if (res.generated && window._vpmComputeResearchPrefsSignature) {
+      var currentSig = window._vpmComputeResearchPrefsSignature();
+      if (res.prefs_signature && res.prefs_signature !== currentSig) {
+        html += '<div class="vpm-info-banner vpm-info-banner-warn" style="display:flex;align-items:center;gap:10px">' + icon('triangle-exclamation');
+        html += ' <span><strong>Start preferences changed</strong> after this brief was generated — the research may no longer reflect your current inputs.</span>';
+        html += '<button class="vpm-btn vpm-btn-ai vpm-btn-sm" data-action="ai-generate-research" style="margin-left:auto">' + icon('sparkles') + ' Regenerate</button>';
+        html += '</div>';
+      }
+    }
 
     // Info banner if no idea yet
     if (!S.data.start.raw_input && !res.generated) {
@@ -2894,6 +3332,142 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     return data;
   }
 
+  // Pending AI-extracted preferences awaiting user review (set by _openPrefDiffModal,
+  // consumed by 'apply-pref-diff'). Stored module-local so the modal can render
+  // without re-running the AI.
+  var _pendingPrefDiff = null;
+
+  // Render a side-by-side diff modal of AI-proposed preference values vs the
+  // current ones, with per-row Accept/Skip checkboxes. The 'apply-pref-diff'
+  // handler writes only the rows the user accepted.
+  function _openPrefDiffModal(proposed, originalText) {
+    if (!proposed || typeof proposed !== 'object') {
+      toast('AI returned no usable preferences. Try a more detailed description.', 'warning');
+      return;
+    }
+    var prefs = (S.data.start && S.data.start.preferences) || {};
+    var video = S.data.video || {};
+
+    // Field definitions for the diff. allow=function(value) checks validity.
+    var fields = [
+      { key: 'title',                target: 'video.title',                     label: 'Title',                  display: function(v) { return v; } },
+      { key: 'description',          target: 'video.description',               label: 'Description',            display: function(v) { return v; } },
+      { key: 'target_audience',      target: 'video.target_audience',           label: 'Target Audience',        display: function(v) { return v; } },
+      { key: 'language',             target: 'preferences.language',            label: 'Language',               display: function(v) { return _diffLabel(Constants.LANGUAGES, v); }, allow: function(v) { return !!Constants.LANGUAGES[v]; } },
+      { key: 'platforms',            target: 'preferences.platforms',           label: 'Target Platforms',       display: function(v) { return (v || []).map(function(p) { return _diffLabel(Constants.PLATFORMS, p); }).join(', '); }, isArray: true, allow: function(v) { return Array.isArray(v) && v.length && v.every(function(p) { return !!Constants.PLATFORMS[p]; }); } },
+      { key: 'aspect_ratio',         target: 'preferences.aspect_ratio',        label: 'Aspect Ratio',           display: function(v) { return _diffLabel(Constants.ASPECT_RATIOS, v); }, allow: function(v) { return !!Constants.ASPECT_RATIOS[v]; } },
+      { key: 'target_duration',      target: 'preferences.target_duration',     label: 'Target Duration',        display: function(v) { return v + 's'; }, allow: function(v) { return typeof v === 'number' && v > 0; } },
+      { key: 'audio_mode',           target: 'preferences.audio_mode',          label: 'Audio Mode',             display: function(v) { return _diffLabel(Constants.AUDIO_MODES, v); }, allow: function(v) { return !!Constants.AUDIO_MODES[v]; } },
+      { key: 'production_mode',      target: 'preferences.production_mode',     label: 'Production Mode',        display: function(v) { return _diffLabel(Constants.PRODUCTION_MODES, v); }, allow: function(v) { return !!Constants.PRODUCTION_MODES[v]; } },
+      { key: 'presenter_preference', target: 'preferences.presenter_preference',label: 'Presenter Preference',   display: function(v) { return _diffLabel(Constants.PRESENTER_PREFS, v); }, allow: function(v) { return !!Constants.PRESENTER_PREFS[v]; } },
+      { key: 'video_style',          target: 'preferences.video_style',         label: 'Video Style',            display: function(v) { return _diffLabel(Constants.VIDEO_STYLES, v); }, allow: function(v) { return !!Constants.VIDEO_STYLES[v]; } },
+      { key: 'tone',                 target: 'preferences.tone',                label: 'Tone',                   display: function(v) { return _diffLabel(Constants.TONES, v); }, allow: function(v) { return !!Constants.TONES[v]; } },
+      { key: 'keywords',             target: 'video.keywords',                  label: 'Keywords',               display: function(v) { return (v || []).join(', '); }, isArray: true }
+    ];
+
+    // Build rows
+    var rows = [];
+    var acceptableCount = 0;
+    for (var i = 0; i < fields.length; i++) {
+      var f = fields[i];
+      var raw = proposed[f.key];
+      var hasValue = f.isArray ? (Array.isArray(raw) && raw.length) : (raw !== '' && raw !== null && raw !== undefined && raw !== 0 && !(typeof raw === 'number' && isNaN(raw)));
+      if (!hasValue) continue;
+      var valid = f.allow ? f.allow(raw) : true;
+      if (!valid) continue;
+      var current;
+      if (f.target.indexOf('preferences.') === 0) current = prefs[f.target.slice('preferences.'.length)];
+      else current = video[f.target.slice('video.'.length)];
+      var unchanged = JSON.stringify(current) === JSON.stringify(raw);
+      rows.push({ field: f, proposed: raw, current: current, unchanged: unchanged });
+      if (!unchanged) acceptableCount++;
+    }
+
+    if (!rows.length) {
+      toast('AI could not extract any preferences from that text. Try adding more detail.', 'info');
+      return;
+    }
+    if (!acceptableCount) {
+      toast('AI suggestions all match your current preferences — nothing to apply', 'info');
+      return;
+    }
+
+    _pendingPrefDiff = { rows: rows, originalText: originalText || '' };
+
+    var body = '';
+    body += '<p class="vpm-text-sm vpm-text-muted" style="margin-bottom:12px">' + icon('wand-magic-sparkles') + ' Review AI-extracted values. Uncheck any you want to skip — only checked rows will be applied.</p>';
+    body += '<div class="vpm-pref-diff-actions" style="display:flex;gap:8px;margin-bottom:10px">';
+    body += '<button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="pref-diff-toggle-all" data-state="on">' + icon('check-double') + ' Accept All</button>';
+    body += '<button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="pref-diff-toggle-all" data-state="off">' + icon('xmark') + ' Skip All</button>';
+    body += '</div>';
+    body += '<table class="vpm-pref-diff-table"><thead><tr><th style="width:32px">Use</th><th>Field</th><th>Current</th><th>AI Suggests</th></tr></thead><tbody>';
+    for (var r = 0; r < rows.length; r++) {
+      var row = rows[r];
+      var checked = row.unchanged ? '' : ' checked';
+      var disabled = row.unchanged ? ' disabled' : '';
+      body += '<tr class="' + (row.unchanged ? 'vpm-pref-diff-row-same' : 'vpm-pref-diff-row-diff') + '">';
+      body += '<td><input type="checkbox" class="vpm-pref-diff-cb" data-idx="' + r + '"' + checked + disabled + '></td>';
+      body += '<td><strong>' + esc(row.field.label) + '</strong></td>';
+      body += '<td class="vpm-text-muted">' + esc(row.field.display(row.current) || '—') + '</td>';
+      body += '<td>' + (row.unchanged ? '<span class="vpm-text-muted">(same)</span>' : esc(row.field.display(row.proposed))) + '</td>';
+      body += '</tr>';
+    }
+    body += '</tbody></table>';
+
+    openModal(icon('wand-magic-sparkles') + ' AI Preference Suggestions', body, {
+      size: 'lg',
+      saveLabel: 'Apply Selected',
+      onSave: function() {
+        if (!_pendingPrefDiff) { closeModal(); return; }
+        var applied = 0;
+        S.data.start.preferences = S.data.start.preferences || {};
+        $('.vpm-pref-diff-cb').each(function() {
+          var $cb = $(this);
+          if (!$cb.is(':checked') || $cb.is(':disabled')) return;
+          var idx = parseInt($cb.data('idx'), 10);
+          var row = _pendingPrefDiff.rows[idx]; if (!row) return;
+          var target = row.field.target;
+          if (target.indexOf('preferences.') === 0) {
+            S.data.start.preferences[target.slice('preferences.'.length)] = row.proposed;
+            if (target === 'preferences.platforms' && Array.isArray(row.proposed) && row.proposed.length) {
+              S.data.start.preferences.platform = row.proposed[0];
+              var pdef = Constants.PLATFORMS[row.proposed[0]];
+              if (pdef && pdef.defaultAspect && !S.data.start.preferences.aspect_ratio) {
+                S.data.start.preferences.aspect_ratio = pdef.defaultAspect;
+              }
+            }
+          } else {
+            S.data.video[target.slice('video.'.length)] = row.proposed;
+          }
+          applied++;
+        });
+        if (applied) {
+          S.data.start.raw_input = _pendingPrefDiff.originalText || S.data.start.raw_input || '';
+          S.data.start.import_source = {
+            type: 'ai-extracted', imported_at: new Date().toISOString(),
+            fields_mapped: _pendingPrefDiff.rows.filter(function(r) { return !r.unchanged; }).map(function(r) { return r.field.key; })
+          };
+          if (window._vpmLogActivity) window._vpmLogActivity('ai_prefs_applied', applied + ' preference(s) applied from AI extraction');
+          if (window._vpmSnapshot) window._vpmSnapshot('AI preference extraction');
+          syncToTextarea();
+          S.startStep = 'preferences';
+          render();
+          toast('Applied ' + applied + ' preference' + (applied === 1 ? '' : 's') + '. Review them below.', 'success');
+        } else {
+          toast('No preferences selected. Nothing applied.', 'info');
+        }
+        _pendingPrefDiff = null;
+        closeModal();
+      }
+    });
+  }
+
+  function _diffLabel(map, key) {
+    if (!key) return '';
+    if (map && map[key] && map[key].label) return map[key].label;
+    return String(key);
+  }
+
 
   // ============================================================
   // SECTION 3: UNDO/REDO
@@ -3108,16 +3682,16 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
   function _renderStartImport() {
     var st = S.data.start || {};
     var html = '';
+    if (!S._startImportTab) S._startImportTab = 'describe';
 
     // Hero
     html += '<div class="vpm-start-hero"><div class="vpm-start-icon">' + icon('file-import') + '</div>';
-    html += '<h1 class="vpm-start-title">Import Video Plan</h1>';
-    html += '<p class="vpm-start-desc">Import your video plan from YouTube Planner or another planning tool to begin production.</p></div>';
+    html += '<h1 class="vpm-start-title">Start Your Video</h1>';
+    html += '<p class="vpm-start-desc">Describe your idea in plain text or paste an existing plan. AI will pre-fill your preferences so you can launch in seconds.</p></div>';
 
-    // If already imported, show banner to continue
     if (st.import_source) {
       html += '<div class="vpm-info-banner vpm-info-banner-success" style="display:flex;align-items:center;gap:12px">';
-      html += icon('circle-check') + ' <span><strong>Data imported from Video Planner</strong>';
+      html += icon('circle-check') + ' <span><strong>Data imported</strong>';
       var mapped = st.import_source.fields_mapped || [];
       if (mapped.length) html += ' — ' + mapped.length + ' fields mapped';
       html += '</span>';
@@ -3125,22 +3699,32 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
       html += '</div>';
     }
 
-    // Import panel (inline, not modal)
     html += '<div class="vpm-panel vpm-start-import-panel">';
-    html += '<div class="vpm-panel-title">' + icon('file-import') + ' Import Video Planner JSON</div>';
+    html += '<div class="vpm-panel-title">' + icon('file-import') + ' Tell us about your video</div>';
 
-    // Tabs
+    // 3 tabs: Describe (default), Paste JSON, Upload File
     html += '<div class="vpm-inner-tabs" style="margin-bottom:16px">';
-    html += '<button class="vpm-inner-tab' + (S._startImportTab !== 'upload' ? ' vpm-inner-tab-active' : '') + '" data-action="start-import-tab" data-tab="paste">' + icon('clipboard') + ' Paste JSON</button>';
+    html += '<button class="vpm-inner-tab' + (S._startImportTab === 'describe' ? ' vpm-inner-tab-active' : '') + '" data-action="start-import-tab" data-tab="describe">' + icon('wand-magic-sparkles') + ' Describe Your Video</button>';
+    html += '<button class="vpm-inner-tab' + (S._startImportTab === 'paste' ? ' vpm-inner-tab-active' : '') + '" data-action="start-import-tab" data-tab="paste">' + icon('clipboard') + ' Paste Planner JSON</button>';
     html += '<button class="vpm-inner-tab' + (S._startImportTab === 'upload' ? ' vpm-inner-tab-active' : '') + '" data-action="start-import-tab" data-tab="upload">' + icon('upload') + ' Upload File</button>';
     html += '</div>';
 
-    // Paste area
-    html += '<div class="vpm-import-tab-pane"' + (S._startImportTab === 'upload' ? ' style="display:none"' : '') + ' data-start-import-tab="paste">';
-    html += '<textarea class="vpm-textarea" id="vpmStartImportJson" rows="14" style="font-family:var(--vpm-font-mono);font-size:12px" placeholder=\'Paste your Video Planner JSON here...\n\n{\n  "title": "...",\n  "description": "...",\n  "audience": "...",\n  "tone": "...",\n  "script_sections": [...],\n  "research": { ... }\n}\'></textarea>';
-    html += '</div>';
+    // Describe tab — free text + AI extraction
+    html += '<div class="vpm-import-tab-pane"' + (S._startImportTab !== 'describe' ? ' style="display:none"' : '') + ' data-start-import-tab="describe">';
+    html += '<p class="vpm-text-sm vpm-text-muted" style="margin-bottom:8px">Describe your video idea, target audience, tone, platform, length — anything you know. AI will infer the preferences and show you the proposed values for review before applying.</p>';
+    html += '<textarea class="vpm-textarea" id="vpmStartDescribeText" rows="10" placeholder="Example: A 90-second YouTube Short explaining how solo founders can use AI tools to ship faster. Energetic tone, single AI presenter, vertical format, English.">' + esc(st.raw_input || '') + '</textarea>';
+    html += '<div style="margin-top:12px;text-align:right">';
+    html += '<button class="vpm-btn vpm-btn-ai vpm-btn-lg" data-action="start-ai-extract">' + icon('wand-magic-sparkles') + ' Auto-fill Preferences with AI</button>';
+    html += '</div></div>';
 
-    // Upload area
+    // Paste JSON tab
+    html += '<div class="vpm-import-tab-pane"' + (S._startImportTab !== 'paste' ? ' style="display:none"' : '') + ' data-start-import-tab="paste">';
+    html += '<textarea class="vpm-textarea" id="vpmStartImportJson" rows="14" style="font-family:var(--vpm-font-mono);font-size:12px" placeholder=\'Paste your Video Planner JSON here...\'></textarea>';
+    html += '<div style="margin-top:12px;text-align:right">';
+    html += '<button class="vpm-btn vpm-btn-ai vpm-btn-lg" data-action="start-execute-import">' + icon('file-import') + ' Import & Continue to Preferences</button>';
+    html += '</div></div>';
+
+    // Upload tab
     html += '<div class="vpm-import-tab-pane"' + (S._startImportTab !== 'upload' ? ' style="display:none"' : '') + ' data-start-import-tab="upload">';
     html += '<div class="vpm-upload-zone" id="vpmStartUploadZone">';
     html += '<div class="vpm-upload-zone-icon">' + icon('cloud-arrow-up') + '</div>';
@@ -3149,13 +3733,12 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     html += '<input type="file" accept=".json,application/json" id="vpmStartFileInput" style="display:none">';
     html += '</div></div>';
 
-    // Preview
     html += '<div id="vpmStartImportPreview" style="margin-top:12px"></div>';
-
-    // Action
-    html += '<div style="margin-top:16px;text-align:right">';
-    html += '<button class="vpm-btn vpm-btn-ai vpm-btn-lg" data-action="start-execute-import">' + icon('file-import') + ' Import & Continue to Preferences</button>';
     html += '</div>';
+
+    // Skip option
+    html += '<div style="text-align:center;margin-top:16px">';
+    html += '<button class="vpm-btn vpm-btn-link" data-action="start-goto-step" data-step="preferences">Skip — set preferences manually ' + icon('arrow-right') + '</button>';
     html += '</div>';
 
     return html;
@@ -3190,26 +3773,14 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     html += '<div class="vpm-mode-card-stages">Start \u2192 Research \u2192 Blueprint \u2192 Script \u2192 Studio \u2192 Clips \u2192 Publish</div></div>';
     html += '</div></div>';
 
-    // --- Preferences Panel ---
+    // --- Primary Preferences (9 fields, always expanded) ---
     html += '<div class="vpm-panel vpm-start-prefs">';
-    html += '<div class="vpm-panel-title">' + icon('gears') + ' Video Preferences</div>';
+    html += '<div class="vpm-panel-title">' + icon('gears') + ' Primary Preferences <span class="vpm-text-muted vpm-text-xs" style="font-weight:400">— the choices that shape every clip</span></div>';
     html += '<div class="vpm-prefs-grid">';
 
     // Language
     html += _prefGroup('Language', 'file-lines', false,
       _chipBar(Constants.LANGUAGES, prefs.language || 'english', 'preferences.language'));
-
-    // Audio Mode (expanded cards)
-    html += _prefGroup('Audio Mode', 'microphone-lines', true, _audioModeCards(prefs.audio_mode || 'ai-audio-with-video'));
-
-    // Voice Profile (conditional)
-    var audioModeDef = Constants.AUDIO_MODES[prefs.audio_mode || 'ai-audio-with-video'] || {};
-    if (audioModeDef.supportsVoiceProfile) {
-      html += _prefGroup('Voice Profile', 'user', true, _voiceProfileEditor(prefs.voice_profile || {}));
-    }
-
-    // Video Style (NEW)
-    html += _prefGroup('Video Style', 'palette', true, _videoStyleCards(prefs.video_style || ''));
 
     // Platform — multi-select
     html += _prefGroup('Target Platforms', 'share-nodes', true, _platformMultiSelect(prefs.platforms || [prefs.platform || 'youtube']));
@@ -3227,58 +3798,81 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     html += _prefGroup('Presenter Preference', 'user', true,
       _chipBar(Constants.PRESENTER_PREFS, prefs.presenter_preference || 'ai-only', 'preferences.presenter_preference'));
 
+    // Audio Mode (expanded cards)
+    html += _prefGroup('Audio Mode', 'microphone-lines', true, _audioModeCards(prefs.audio_mode || 'ai-audio-with-video'));
+
+    // Video Style
+    html += _prefGroup('Video Style', 'palette', true, _videoStyleCards(prefs.video_style || ''));
+
+    // Tone (drives narrative voice for AI script + research)
+    html += _prefGroup('Tone', 'face-smile', true,
+      _chipBar(Constants.TONES, prefs.tone || 'friendly', 'preferences.tone'));
+
     html += '</div></div>';
 
-    // --- Model Selection ---
-    html += _renderModelSelectionPanel(prefs);
+    // --- Advanced Options header + collapsible groups ---
+    html += '<div class="vpm-start-advanced-header"><span>' + icon('sliders') + ' Advanced Options</span>';
+    html += '<span class="vpm-text-muted vpm-text-xs" style="margin-left:auto">Defaults work for most videos \u2014 expand to fine-tune</span></div>';
 
-    // --- Seedance Audio Direction (when Seedance is primary) ---
+    // 1) Voice & TTS (only when audio mode supports voice profile)
+    var audioModeDef = Constants.AUDIO_MODES[prefs.audio_mode || 'ai-audio-with-video'] || {};
+    if (audioModeDef.supportsVoiceProfile) {
+      var vp = prefs.voice_profile || {};
+      var vpSummary = [];
+      if (vp.gender) vpSummary.push(Constants.VOICE_GENDERS[vp.gender] || vp.gender);
+      if (vp.style) vpSummary.push(Constants.VOICE_STYLES[vp.style] || vp.style);
+      if (vp.accent) vpSummary.push(Constants.VOICE_ACCENTS[vp.accent] || vp.accent);
+      html += _advancedGroup('voice', 'Voice & TTS', 'microphone',
+        vpSummary.length ? esc(vpSummary.join(' \u00b7 ')) : 'No voice profile set',
+        _voiceProfileEditor(vp));
+    }
+
+    // 2) AI Models (+ Seedance audio direction when applicable)
+    var modelsContent = _renderModelSelectionPanel(prefs);
     var _primaryVMPref = prefs.primary_video_model || (S.meta.aiPreferences || {}).videoModel || 'seedance';
-    if (_primaryVMPref === 'seedance') {
-      html += _renderSeedanceAudioDirectionPanel(prefs);
-    }
+    if (_primaryVMPref === 'seedance') modelsContent += _renderSeedanceAudioDirectionPanel(prefs);
+    var modelLabel = (Constants.VIDEO_MODELS && Constants.VIDEO_MODELS[_primaryVMPref] && Constants.VIDEO_MODELS[_primaryVMPref].label) || _primaryVMPref;
+    html += _advancedGroup('models', 'AI Models', 'wand-magic-sparkles',
+      'Primary video: ' + esc(modelLabel) + (_primaryVMPref === 'seedance' ? ' \u2014 Seedance audio options included' : ''),
+      modelsContent);
 
-    // --- Brand Library Selection ---
-    html += _renderBrandLibrarySelectionPanel();
+    // 3) Brand Library
+    html += _advancedGroup('brand', 'Brand Library', 'palette',
+      'Pick which brand looks, environments and scenes are available for this video',
+      _renderBrandLibrarySelectionPanel());
 
-    // --- Template Clips Option ---
+    // 4) Clips & Templates
     var _inclTpl = prefs.include_templates;
-    html += '<div class="vpm-panel" style="padding:var(--vpm-space-3)">';
-    html += '<div class="vpm-flex-between">';
-    html += '<div><strong class="vpm-text-sm">' + icon('layer-group') + ' Include Template Clips</strong>';
-    html += '<div class="vpm-text-xs vpm-text-muted">Auto-insert branded intro, outro & chapter titles when generating clips</div></div>';
-    html += '<label class="vpm-toggle-switch"><input type="checkbox" data-action="toggle-include-templates"' + (_inclTpl !== false ? ' checked' : '') + '> <span class="vpm-text-sm">' + (_inclTpl !== false ? 'On' : 'Off') + '</span></label>';
-    html += '</div></div>';
-
-    // --- Clip Type Selection (collapsible) ---
-    html += '<div class="vpm-panel">';
-    html += '<div class="vpm-panel-title" data-action="toggle-clip-types" style="cursor:pointer">' + icon('film') + ' Clip Types ';
-    html += '<span class="vpm-text-muted vpm-text-xs">(optional \u2014 auto-selected from production mode if skipped)</span>';
     var selectedTypes = st.selected_clip_types || [];
-    if (selectedTypes.length) html += ' ' + badge(selectedTypes.length + ' selected', '#0d904f');
-    html += '<span style="margin-left:auto">' + icon(S._clipTypesExpanded ? 'chevron-up' : 'chevron-down') + '</span></div>';
-    if (S._clipTypesExpanded) {
-      var tracks = { ai: [], 'non-ai': [], template: [] };
-      for (var ctk in Constants.CLIP_TYPES) tracks[Constants.CLIP_TYPES[ctk].track].push(ctk);
-      var trackLabels = { ai: 'AI Track', 'non-ai': 'Non-AI Track', template: 'Template Track' };
-      for (var trk in trackLabels) {
-        html += '<div style="margin-top:10px"><div class="vpm-text-label" style="margin-bottom:6px">' + esc(trackLabels[trk]) + '</div>';
-        html += '<div class="vpm-chip-bar" style="flex-wrap:wrap">';
-        for (var ti = 0; ti < tracks[trk].length; ti++) {
-          var ctKey = tracks[trk][ti];
-          var ct = Constants.CLIP_TYPES[ctKey];
-          var isSelected = selectedTypes.indexOf(ctKey) >= 0;
-          html += '<button class="vpm-chip' + (isSelected ? ' vpm-chip-active' : '') + '" data-action="toggle-clip-type" data-value="' + esc(ctKey) + '" style="border-color:' + ct.color + '">';
-          html += icon(ct.icon) + ' ' + esc(ct.label) + '</button>';
-        }
-        html += '</div></div>';
+    var clipsSummary = (_inclTpl !== false ? 'Templates on' : 'Templates off');
+    clipsSummary += selectedTypes.length ? ' \u00b7 ' + selectedTypes.length + ' clip types pinned' : ' \u00b7 Auto-pick from production mode';
+    var clipsContent = '';
+    clipsContent += '<div class="vpm-flex-between" style="padding:8px 0">';
+    clipsContent += '<div><strong class="vpm-text-sm">' + icon('layer-group') + ' Include Template Clips</strong>';
+    clipsContent += '<div class="vpm-text-xs vpm-text-muted">Auto-insert branded intro, outro & chapter titles when generating clips</div></div>';
+    clipsContent += '<label class="vpm-toggle-switch"><input type="checkbox" data-action="toggle-include-templates"' + (_inclTpl !== false ? ' checked' : '') + '> <span class="vpm-text-sm">' + (_inclTpl !== false ? 'On' : 'Off') + '</span></label>';
+    clipsContent += '</div>';
+    clipsContent += '<div class="vpm-text-label" style="margin-top:12px;margin-bottom:6px">' + icon('film') + ' Clip Types <span class="vpm-text-muted vpm-text-xs">(optional \u2014 auto-selected from production mode if skipped)</span></div>';
+    var tracks = { ai: [], 'non-ai': [], template: [] };
+    for (var ctk in Constants.CLIP_TYPES) tracks[Constants.CLIP_TYPES[ctk].track].push(ctk);
+    var trackLabels = { ai: 'AI Track', 'non-ai': 'Non-AI Track', template: 'Template Track' };
+    for (var trk in trackLabels) {
+      clipsContent += '<div style="margin-top:8px"><div class="vpm-text-xs vpm-text-muted" style="margin-bottom:4px">' + esc(trackLabels[trk]) + '</div>';
+      clipsContent += '<div class="vpm-chip-bar" style="flex-wrap:wrap">';
+      for (var ti = 0; ti < tracks[trk].length; ti++) {
+        var ctKey = tracks[trk][ti];
+        var ct = Constants.CLIP_TYPES[ctKey];
+        var isSelected = selectedTypes.indexOf(ctKey) >= 0;
+        clipsContent += '<button class="vpm-chip' + (isSelected ? ' vpm-chip-active' : '') + '" data-action="toggle-clip-type" data-value="' + esc(ctKey) + '" style="border-color:' + ct.color + '">';
+        clipsContent += icon(ct.icon) + ' ' + esc(ct.label) + '</button>';
       }
-      html += '<div style="margin-top:10px">';
-      html += '<button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="auto-select-clip-types">' + icon('sparkles') + ' Auto-select from Production Mode</button>';
-      if (selectedTypes.length) html += ' <button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="clear-clip-types">' + icon('xmark') + ' Clear All</button>';
-      html += '</div>';
+      clipsContent += '</div></div>';
     }
-    html += '</div>';
+    clipsContent += '<div style="margin-top:10px">';
+    clipsContent += '<button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="auto-select-clip-types">' + icon('sparkles') + ' Auto-select from Production Mode</button>';
+    if (selectedTypes.length) clipsContent += ' <button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="clear-clip-types">' + icon('xmark') + ' Clear All</button>';
+    clipsContent += '</div>';
+    html += _advancedGroup('clips', 'Clips & Templates', 'film', clipsSummary, clipsContent);
 
     // Navigation
     html += '<div class="vpm-start-nav-buttons">';
@@ -3287,6 +3881,23 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     html += '</div>';
 
     return html;
+  }
+
+  // Render a collapsible Advanced group. Open state persists in S.meta._ui.advanced_panels[key].
+  function _advancedGroup(key, label, iconName, summary, contentHtml) {
+    var ui = (S.meta._ui = S.meta._ui || {});
+    var panels = (ui.advanced_panels = ui.advanced_panels || {});
+    var open = !!panels[key];
+    var h = '';
+    h += '<div class="vpm-panel vpm-adv-group' + (open ? ' vpm-adv-group-open' : '') + '">';
+    h += '<div class="vpm-adv-group-head" data-action="toggle-adv-panel" data-key="' + esc(key) + '">';
+    h += '<span class="vpm-adv-group-title">' + icon(iconName) + ' ' + esc(label) + '</span>';
+    h += '<span class="vpm-adv-group-summary">' + summary + '</span>';
+    h += '<span class="vpm-adv-group-chev">' + icon(open ? 'chevron-up' : 'chevron-down') + '</span>';
+    h += '</div>';
+    if (open) h += '<div class="vpm-adv-group-body">' + contentHtml + '</div>';
+    h += '</div>';
+    return h;
   }
 
   // --- Step 3: Review & Launch ---
@@ -6266,6 +6877,17 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
       render();
     });
 
+    // Toggle Advanced collapsible group (Voice & TTS / AI Models / Brand Library / Clips & Templates)
+    $(document).off('click.vpm2a-tgadv').on('click.vpm2a-tgadv', '[data-action="toggle-adv-panel"]', function(e) {
+      e.preventDefault();
+      var key = $(this).data('key'); if (!key) return;
+      var ui = S.meta._ui = S.meta._ui || {};
+      var panels = ui.advanced_panels = ui.advanced_panels || {};
+      panels[key] = !panels[key];
+      syncToTextarea();
+      render();
+    });
+
     $(document).off('click.vpm2a-tct').on('click.vpm2a-tct', '[data-action="toggle-clip-type"]', function(e) {
       e.preventDefault();
       var val = $(this).data('value');
@@ -6313,6 +6935,28 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
       $(this).addClass('vpm-inner-tab-active');
       $('[data-start-import-tab]').hide();
       $('[data-start-import-tab="' + tab + '"]').show();
+    });
+
+    // AI extract from free-text description (Describe tab)
+    $(document).off('click.vpm2a-saie').on('click.vpm2a-saie', '[data-action="start-ai-extract"]', function(e) {
+      e.preventDefault();
+      var txt = ($('#vpmStartDescribeText').val() || '').trim();
+      if (!txt) { toast('Type a description first', 'warning'); return; }
+      // Keep the raw input so it stays available across navigations & saves
+      S.data.start.raw_input = txt;
+      syncToTextarea();
+      if (!window._vpmExtractPreferencesFromText) { toast('AI module still loading — try again in a moment', 'info'); return; }
+      window._vpmExtractPreferencesFromText(txt, function(proposed) { _openPrefDiffModal(proposed, txt); });
+    });
+
+    // Diff modal — Accept All / Skip All
+    $(document).off('click.vpm2a-pdta').on('click.vpm2a-pdta', '[data-action="pref-diff-toggle-all"]', function(e) {
+      e.preventDefault();
+      var on = $(this).data('state') === 'on';
+      $('.vpm-pref-diff-cb').each(function() {
+        if ($(this).is(':disabled')) return;
+        $(this).prop('checked', on);
+      });
     });
 
     // Start Import — inline live preview
@@ -6463,6 +7107,7 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
       S.data.video.production_mode = prefs.production_mode || 'full-ai';
       S.data.video.presenter_preference = prefs.presenter_preference || 'ai-only';
       S.data.video.video_style = prefs.video_style || '';
+      S.data.video.tone = prefs.tone || S.data.video.tone || 'friendly';
       S.data.video.audio_mode = prefs.audio_mode || 'ai-audio-with-video';
       S.data.video.voice_profile = prefs.voice_profile ? JSON.parse(JSON.stringify(prefs.voice_profile)) : null;
       S.data.video.selected_video_models = prefs.selected_video_models ? prefs.selected_video_models.slice() : [];
@@ -8018,7 +8663,8 @@ var AI_ACTIONS = {
   'generate-chapters':    { label: 'Generate Chapters',          icon: 'clock',               size: 'small' },
   'generate-thumbnails':  { label: 'Generate Thumbnail Ideas',   icon: 'image',               size: 'big' },
   'regen-research':       { label: 'Regenerate Research Section', icon: 'magnifying-glass',   size: 'small' },
-  'regen-thumbnail':      { label: 'Regenerate Thumbnail Idea',  icon: 'image',               size: 'small' }
+  'regen-thumbnail':      { label: 'Regenerate Thumbnail Idea',  icon: 'image',               size: 'small' },
+  'extract-preferences':  { label: 'Extract Preferences from Idea', icon: 'wand-magic-sparkles', size: 'big' }
 };
 
 var _aiProgressActive = false, _aiProgressTimer = null, _aiProgressStartTime = 0, _aiAbortController = null;
@@ -9181,6 +9827,63 @@ function _extractArray(result, key) {
   // SECTION 6: AI — IDEA ANALYSIS
   // ============================================================
 
+  // Signature of the Start preferences that shape research output.
+  // Stored on research.prefs_signature at generation time; compared on each
+  // research-view render to detect "Preferences changed since generation".
+  function _computeResearchPrefsSignature() {
+    var p = (S.data.start && S.data.start.preferences) || {};
+    var v = S.data.video || {};
+    var sig = {
+      language: p.language || '',
+      platforms: (p.platforms || [p.platform || '']).slice().sort().join(','),
+      aspect_ratio: p.aspect_ratio || '',
+      target_duration: p.target_duration || 0,
+      audio_mode: p.audio_mode || '',
+      production_mode: p.production_mode || '',
+      presenter_preference: p.presenter_preference || '',
+      video_style: p.video_style || '',
+      tone: p.tone || '',
+      target_audience: v.target_audience || ''
+    };
+    return JSON.stringify(sig);
+  }
+
+  // Extract video preferences from free-text input (or imported plan).
+  // Calls the LLM with a strict JSON schema, then hands the parsed object
+  // back to onResult so the caller can show a diff modal before applying.
+  function extractPreferencesFromText(rawText, onResult) {
+    var text = (rawText || '').trim();
+    if (!text) { toast('Paste or describe your video idea first', 'warning'); return; }
+    if (!LLMService.isConfigured()) {
+      toast('Configure an AI provider in Settings to use auto-mapping', 'warning');
+      return;
+    }
+    var sp = 'You extract structured video-production preferences from a short description. Return JSON only — no markdown, no prose.';
+    var prompt = '';
+    prompt += 'Read the description below and infer the user\'s video production preferences. For any field where the description is ambiguous or silent, return an empty string (or empty array). Do NOT invent confident values from thin air — be conservative.\n\n';
+    prompt += 'DESCRIPTION:\n"""\n' + text + '\n"""\n\n';
+    prompt += 'Allowed values:\n';
+    prompt += '- language: ' + Object.keys(Constants.LANGUAGES).join(' | ') + '\n';
+    prompt += '- platforms (array, 1+): ' + Object.keys(Constants.PLATFORMS).join(' | ') + '\n';
+    prompt += '- aspect_ratio: ' + Object.keys(Constants.ASPECT_RATIOS).join(' | ') + '\n';
+    prompt += '- target_duration (seconds, integer): typical 60–600\n';
+    prompt += '- audio_mode: ' + Object.keys(Constants.AUDIO_MODES).join(' | ') + '\n';
+    prompt += '- production_mode: ' + Object.keys(Constants.PRODUCTION_MODES).join(' | ') + '\n';
+    prompt += '- presenter_preference: ' + Object.keys(Constants.PRESENTER_PREFS).join(' | ') + '\n';
+    prompt += '- video_style: ' + Object.keys(Constants.VIDEO_STYLES).join(' | ') + '\n';
+    prompt += '- tone: ' + Object.keys(Constants.TONES).join(' | ') + '\n';
+    prompt += '- target_audience (free text, one short phrase)\n';
+    prompt += '- title (free text, short and concrete)\n';
+    prompt += '- description (one sentence)\n';
+    prompt += '- keywords (array of short tags)\n\n';
+    prompt += 'Return EXACTLY this JSON shape:\n';
+    prompt += '{"language":"","platforms":[],"aspect_ratio":"","target_duration":0,"audio_mode":"","production_mode":"","presenter_preference":"","video_style":"","tone":"","target_audience":"","title":"","description":"","keywords":[]}';
+    _callAIWithRetry(prompt, sp, 'extract-preferences', 'extract-preferences', true, function(r) {
+      _hideAIProgress();
+      try { onResult(r || {}); } catch (e) { console.error('[VPM] extract-preferences callback error:', e); }
+    });
+  }
+
   function analyzeIdea(actionId, ci) {
     var input = (S.data.start.raw_input || '').trim();
     if (!input) { toast('Enter your video idea first', 'warning'); return; }
@@ -9283,6 +9986,8 @@ function _extractArray(result, key) {
         if (r.trending_angles) S.data.research.trending_angles = _ensureString(r.trending_angles);
         if (r.content_strategy) S.data.research.content_strategy = _ensureString(r.content_strategy);
         S.data.research.generated = true; S.data.research.generated_at = new Date().toISOString();
+        // Snapshot which Start preferences shaped this brief — used by the Research view to flag staleness.
+        S.data.research.prefs_signature = _computeResearchPrefsSignature();
         logActivity('research_generated', 'AI research brief generated');
         if (snapshot) snapshot('Research'); buildMaps(); syncToTextarea(); render();
         toast('Research brief generated!', 'success');
@@ -10973,10 +11678,13 @@ function _extractArray(result, key) {
   // SECTION 17: API EXPORTS
   // ============================================================
 
+  window._vpmExtractPreferencesFromText = extractPreferencesFromText;
+  window._vpmComputeResearchPrefsSignature = _computeResearchPrefsSignature;
   window._vpmPart2B = {
     LLMService: LLMService, BrandService: BrandService,
     isAIConfigured: LLMService.isConfigured.bind(LLMService),
     renderInlinePicker: LLMService.renderInlinePicker.bind(LLMService),
+    extractPreferencesFromText: extractPreferencesFromText,
     analyzeIdea: analyzeIdea, generateResearch: generateResearch,
     generateScript: generateScript, enhanceSection: enhanceSection,
     generateClips: generateClips, generateFramePrompt: generateFramePrompt,

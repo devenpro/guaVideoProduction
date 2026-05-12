@@ -67,6 +67,53 @@
 .vpm-start-prefs { margin-bottom: var(--vpm-space-3); }
 .vpm-prefs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--vpm-space-4); }
 .vpm-pref-group { }
+
+/* Start — AI preference diff modal table */
+.vpm-pref-diff-table { width: 100%; border-collapse: collapse; font-size: var(--vpm-font-sm); }
+.vpm-pref-diff-table th { text-align: left; padding: 8px; border-bottom: 1px solid var(--vpm-border); background: var(--vpm-gray-50); font-weight: 600; color: var(--vpm-text-secondary); }
+.vpm-pref-diff-table td { padding: 10px 8px; border-bottom: 1px solid var(--vpm-gray-100); vertical-align: top; }
+.vpm-pref-diff-row-same td { opacity: 0.55; }
+.vpm-pref-diff-row-diff:hover { background: var(--vpm-primary-subtle); }
+.vpm-pref-diff-cb { width: 16px; height: 16px; cursor: pointer; }
+
+/* Start — Advanced options group (collapsible panels) */
+.vpm-start-advanced-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: var(--vpm-space-3) 2px 8px;
+  font-weight: 700;
+  color: var(--vpm-text-primary);
+}
+.vpm-adv-group { padding: 0; margin-bottom: var(--vpm-space-2); overflow: hidden; }
+.vpm-adv-group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--vpm-space-2);
+  padding: var(--vpm-space-2) var(--vpm-space-3);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--vpm-transition-fast);
+}
+.vpm-adv-group-head:hover { background: var(--vpm-gray-50); }
+.vpm-adv-group-title { font-weight: 700; color: var(--vpm-text-primary); flex-shrink: 0; }
+.vpm-adv-group-summary {
+  font-size: var(--vpm-font-xs);
+  color: var(--vpm-text-muted);
+  margin-left: auto;
+  margin-right: var(--vpm-space-2);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+.vpm-adv-group-chev { color: var(--vpm-text-muted); flex-shrink: 0; }
+.vpm-adv-group-open .vpm-adv-group-head { background: var(--vpm-gray-50); border-bottom: 1px solid var(--vpm-border); }
+.vpm-adv-group-body { padding: var(--vpm-space-3); }
+@media (max-width: 640px) {
+  .vpm-adv-group-summary { display: none; }
+}
 .vpm-pref-full { grid-column: 1 / -1; }
 .vpm-pref-label { font-size: var(--vpm-font-xs); font-weight: 600; color: var(--vpm-text-secondary); margin-bottom: var(--vpm-space-2); display: flex; align-items: center; gap: var(--vpm-space-1); text-transform: uppercase; letter-spacing: 0.04em; }
 
@@ -212,6 +259,35 @@
 /* ============================================================
    S9B: RESEARCH VIEW
    ============================================================ */
+.vpm-research-source-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--vpm-space-3);
+  padding: 10px 12px;
+  background: var(--vpm-gray-50);
+  border: 1px solid var(--vpm-border-light);
+  border-radius: var(--vpm-radius-md);
+}
+.vpm-research-source-chips-label { font-size: var(--vpm-font-xs); font-weight: 700; color: var(--vpm-text-secondary); margin-right: 4px; }
+.vpm-research-source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--vpm-white);
+  border: 1px solid var(--vpm-border);
+  border-radius: 999px;
+  font-size: var(--vpm-font-xs);
+  color: var(--vpm-text-primary);
+  cursor: pointer;
+  transition: all var(--vpm-transition-fast);
+}
+.vpm-research-source-chip:hover { border-color: var(--vpm-primary); color: var(--vpm-primary); background: var(--vpm-primary-subtle); }
+.vpm-research-source-chip-label { color: var(--vpm-text-muted); font-weight: 600; }
+.vpm-info-banner-warn { background: #fff7ed; border-left: 4px solid #f59e0b; color: #7c2d12; }
+
 .vpm-research-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--vpm-space-3); margin-bottom: var(--vpm-space-4); }
 .vpm-research-panel { background: var(--vpm-white); border: 1px solid var(--vpm-border-light); border-top: 3px solid var(--vpm-primary); border-radius: var(--vpm-radius-lg); padding: var(--vpm-space-4); transition: border-color var(--vpm-transition-fast), box-shadow var(--vpm-transition-fast); }
 .vpm-research-panel:hover { box-shadow: var(--vpm-shadow-sm); }
