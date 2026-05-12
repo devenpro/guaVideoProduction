@@ -22,7 +22,8 @@
       settings: {}, aiPreferences: {},
       lookLibrary: [], environmentLibrary: [], sceneLibrary: [],
       brandOverrides: {},
-      studioRequirements: {}
+      studioRequirements: {},
+      _ui: {}
     },
     activity: [],
 

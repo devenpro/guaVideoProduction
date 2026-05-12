@@ -1,4 +1,4 @@
-/*! VPM JS bundle — built 2026-05-12T02:59:32.345Z */
+/*! VPM JS bundle — built 2026-05-12T06:08:39.200Z */
 
 /* ===== src/core/constants.js ===== */
 /**
@@ -357,7 +357,8 @@
       settings: {}, aiPreferences: {},
       lookLibrary: [], environmentLibrary: [], sceneLibrary: [],
       brandOverrides: {},
-      studioRequirements: {}
+      studioRequirements: {},
+      _ui: {}
     },
     activity: [],
 
@@ -824,11 +825,21 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
       parseBrandStudioLibrary();
       _observeBrandStudioLibrary();
       buildMaps();
+      // Restore last UI state (current stage + sub-tabs + selected clip) BEFORE first render
+      // so the app reopens exactly where the user left off.
+      var _resumed = false;
+      try { _resumed = _restoreUIState(); } catch (_re) { console.warn('[VPM] UI restore failed:', _re && _re.message); }
       // Auto-hide sidebar on mobile viewports
       if (window.innerWidth < 992) S.sidebarHidden = true;
       renderApp();
       setupEventHandlers();
       startAutoSave();
+      // Resume toast — shown once on init when restored to a non-Start stage.
+      if (_resumed) {
+        var lbl = (APP_STAGES[S.currentStage] && APP_STAGES[S.currentStage].label) || (UTILITY_VIEWS[S.currentStage] && UTILITY_VIEWS[S.currentStage].label) || S.currentStage;
+        // Delay so toast container is fully mounted
+        setTimeout(function() { try { toast('Resumed at ' + lbl, 'info', 3000); } catch (_te) {} }, 400);
+      }
     } catch (e) {
       console.error('[VPM] Init error:', e.message, e.stack);
       S._initializing = false;
@@ -1054,6 +1065,7 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     if (!S.meta.sceneLibrary) S.meta.sceneLibrary = [];
     if (!S.meta.brandOverrides) S.meta.brandOverrides = {};
     if (!S.meta.studioRequirements) S.meta.studioRequirements = {};
+    S.meta._ui = $.extend(true, {}, def._ui, S.meta._ui || {});
 
     // Migrate deprecated model IDs
     var _modelFixes = {
@@ -1417,6 +1429,91 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     return S.mode === 'standard' ? STAGE_ORDER_STANDARD : STAGE_ORDER_ADVANCED;
   }
 
+  // Capture current UI state (stage + sub-state) into S.meta._ui.
+  // Cheap — only mutates the object; does NOT mark dirty or write the textarea.
+  // syncToTextarea() calls this before writing so saved JSON includes the latest UI state.
+  function _captureUIState() {
+    if (!S.meta) return;
+    var ui = S.meta._ui = S.meta._ui || {};
+    ui.last_stage = S.currentStage || 'start';
+    ui.start_step = S.startStep || '';
+    ui.selected_clip_id = S.selectedClipId || '';
+    ui.clip_detail_tab = S.currentClipDetailTab || '';
+    ui.studio_tab = S.currentStudioTab || '';
+    ui.settings_tab = S.currentSettingsTab || '';
+    ui.platform_tab = S.currentPlatformTab || '';
+    ui.thumbnail_step = S.thumbnailStep || '';
+    if (!Array.isArray(ui.visited_stages)) ui.visited_stages = [];
+    ui.updated_at = new Date().toISOString();
+  }
+
+  // Restore UI state from S.meta._ui into S.* fields. Called in init() before renderApp().
+  // Validates that the restored stage is reachable in the current mode and falls back to 'start' otherwise.
+  // Returns true if a non-default stage was restored (used to decide whether to show the "Resume" toast).
+  function _restoreUIState() {
+    var ui = (S.meta && S.meta._ui) || {};
+    var restored = false;
+    if (ui.last_stage) {
+      var stageOrder = getStageOrder();
+      if (APP_STAGES[ui.last_stage] && stageOrder.indexOf(ui.last_stage) !== -1) {
+        S.currentStage = ui.last_stage;
+        restored = ui.last_stage !== 'start';
+      } else if (UTILITY_VIEWS[ui.last_stage]) {
+        S.currentStage = ui.last_stage;
+        restored = true;
+      }
+    }
+    if (ui.start_step) S.startStep = ui.start_step;
+    if (ui.clip_detail_tab) S.currentClipDetailTab = ui.clip_detail_tab;
+    if (ui.studio_tab) S.currentStudioTab = ui.studio_tab;
+    if (ui.settings_tab) S.currentSettingsTab = ui.settings_tab;
+    if (ui.platform_tab) S.currentPlatformTab = ui.platform_tab;
+    if (ui.thumbnail_step) S.thumbnailStep = ui.thumbnail_step;
+    if (ui.selected_clip_id) {
+      var clips = (S.data && S.data.clips) || [];
+      for (var i = 0; i < clips.length; i++) {
+        if (clips[i].id === ui.selected_clip_id) { S.selectedClipId = ui.selected_clip_id; break; }
+      }
+    }
+    return restored;
+  }
+
+  // Auto-mark prior stage complete when user navigates forward AND prior stage has min content.
+  // Returns the stage that was auto-confirmed (or '' if nothing changed).
+  function _maybeAutoConfirmPriorStage(fromStage, toStage) {
+    if (!fromStage || !toStage || fromStage === toStage) return '';
+    var stageOrder = getStageOrder();
+    var fromIdx = stageOrder.indexOf(fromStage), toIdx = stageOrder.indexOf(toStage);
+    if (fromIdx < 0 || toIdx <= fromIdx) return ''; // not a forward move
+    var d = S.data || {};
+    if (fromStage === 'research') {
+      var r = d.research || {};
+      if (!r.generated && (r.audience_insights || r.competitor_analysis || r.trending_angles || r.content_strategy)) {
+        r.generated = true; r.generated_at = r.generated_at || new Date().toISOString();
+        logActivity && logActivity('research_auto_confirmed', 'Research auto-marked complete on stage advance');
+        return 'research';
+      }
+    } else if (fromStage === 'blueprint') {
+      var bp = d.blueprint || {};
+      var hasSection = (bp.sections || []).some(function(s) { return (s.label || '').trim().length > 0; });
+      if (!bp.confirmed && hasSection) {
+        bp.confirmed = true; bp.confirmed_at = bp.confirmed_at || new Date().toISOString();
+        logActivity && logActivity('blueprint_auto_confirmed', 'Blueprint auto-marked complete on stage advance');
+        return 'blueprint';
+      }
+    } else if (fromStage === 'script') {
+      var sc = d.script || {}, totalChars = 0;
+      var secs = sc.sections || [];
+      for (var si = 0; si < secs.length; si++) totalChars += (secs[si].content ? stripHtml(secs[si].content).trim().length : 0);
+      if (!sc.finalized && totalChars >= 20) {
+        sc.finalized = true; sc.finalized_at = sc.finalized_at || new Date().toISOString();
+        logActivity && logActivity('script_auto_confirmed', 'Script auto-marked complete on stage advance');
+        return 'script';
+      }
+    }
+    return '';
+  }
+
   function navigateToStage(stageId) {
     if (!APP_STAGES[stageId] && !UTILITY_VIEWS[stageId]) return;
     // Check if stage is available in current mode
@@ -1432,8 +1529,21 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
       toast(access.warning, 'info');
     }
 
+    var fromStage = S.currentStage;
     S.previousStage = S.currentStage;
     S.currentStage = stageId;
+
+    // Auto-mark prior stage complete on forward navigation (when it has minimum content).
+    // Explicit Confirm/Unlock buttons still work — this just removes the friction of leaving stages
+    // visibly "incomplete" after the user has clearly moved past them.
+    var autoConfirmed = _maybeAutoConfirmPriorStage(fromStage, stageId);
+
+    // Track visited stages for sidebar coach + future analytics
+    var ui = S.meta && S.meta._ui;
+    if (ui) {
+      if (!Array.isArray(ui.visited_stages)) ui.visited_stages = [];
+      if (ui.visited_stages.indexOf(stageId) === -1) ui.visited_stages.push(stageId);
+    }
 
     // Reset sub-state for clips
     if (stageId === 'clips' && !S.selectedClipId && S.data.clips && S.data.clips.length > 0) {
@@ -1441,6 +1551,18 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
       var firstClip = S.data.clips[0];
       var firstTrack = firstClip.track || (CLIP_TYPES[firstClip.type] || {}).track || 'ai';
       S.currentClipDetailTab = firstTrack === 'ai' ? 'script-config' : firstTrack === 'non-ai' ? 'planning' : 'template';
+    }
+
+    // Recompute completion flags every navigation so sidebar reflects the latest state
+    // (especially after an auto-confirm).
+    try { buildMaps(); } catch (_e) {}
+
+    // Persist new stage + sub-state immediately so a reload restores correctly
+    syncToTextarea();
+
+    if (autoConfirmed) {
+      var label = (APP_STAGES[autoConfirmed] && APP_STAGES[autoConfirmed].label) || autoConfirmed;
+      toast(label + ' marked complete', 'success', 2200);
     }
 
     // Render content + sidebar
@@ -1461,13 +1583,16 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     var $nav = $sidebar.find('.vpm-nav');
     if (!$nav.length) return;
     var html = '<div class="vpm-nav-label"><span class="vpm-nav-label-text">STAGES</span></div>';
+    var _visited = (S.meta && S.meta._ui && Array.isArray(S.meta._ui.visited_stages)) ? S.meta._ui.visited_stages : [];
     for (var si = 0; si < stageOrder.length; si++) {
       var key = stageOrder[si], stage = APP_STAGES[key], status = getStageStatus(key);
       var isActive = S.currentStage === key, isDone = status === 'complete', isFuture = status === 'not-started';
+      var isVisited = !isActive && !isDone && _visited.indexOf(key) !== -1;
       var progress = getStageProgress(key);
-      html += '<button class="vpm-nav-item' + (isActive ? ' vpm-nav-active' : '') + (isDone ? ' vpm-nav-done' : '') + (isFuture ? ' vpm-nav-future' : '') + '" data-action="navigate" data-stage="' + key + '" title="' + esc(stage.label) + '">';
+      html += '<button class="vpm-nav-item' + (isActive ? ' vpm-nav-active' : '') + (isDone ? ' vpm-nav-done' : '') + (isVisited ? ' vpm-nav-visited' : '') + (isFuture ? ' vpm-nav-future' : '') + '" data-action="navigate" data-stage="' + key + '" title="' + esc(stage.label) + (isVisited ? ' (visited — not confirmed)' : '') + '">';
       html += '<div class="vpm-nav-dot">';
       if (isDone) html += icon('check');
+      else if (isVisited) html += icon('circle-dot');
       else html += '<span class="vpm-nav-step">' + (si + 1) + '</span>';
       html += '</div>';
       html += '<div class="vpm-nav-text"><div class="vpm-nav-name">' + esc(stage.label) + '</div>';
@@ -1626,13 +1751,16 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     html += '</div>';
     html += '<nav class="vpm-nav">';
     html += '<div class="vpm-nav-label"><span class="vpm-nav-label-text">STAGES</span></div>';
+    var _visited2 = (S.meta && S.meta._ui && Array.isArray(S.meta._ui.visited_stages)) ? S.meta._ui.visited_stages : [];
     for (var si = 0; si < stageOrder.length; si++) {
       var key = stageOrder[si], stage = APP_STAGES[key], status = getStageStatus(key);
       var isActive = S.currentStage === key, isDone = status === 'complete', isFuture = status === 'not-started';
+      var isVisited = !isActive && !isDone && _visited2.indexOf(key) !== -1;
       var progress = getStageProgress(key);
-      html += '<button class="vpm-nav-item' + (isActive ? ' vpm-nav-active' : '') + (isDone ? ' vpm-nav-done' : '') + (isFuture ? ' vpm-nav-future' : '') + '" data-action="navigate" data-stage="' + key + '" title="' + esc(stage.label) + '">';
+      html += '<button class="vpm-nav-item' + (isActive ? ' vpm-nav-active' : '') + (isDone ? ' vpm-nav-done' : '') + (isVisited ? ' vpm-nav-visited' : '') + (isFuture ? ' vpm-nav-future' : '') + '" data-action="navigate" data-stage="' + key + '" title="' + esc(stage.label) + (isVisited ? ' (visited — not confirmed)' : '') + '">';
       html += '<div class="vpm-nav-dot">';
       if (isDone) html += icon('check');
+      else if (isVisited) html += icon('circle-dot');
       else html += '<span class="vpm-nav-step">' + (si + 1) + '</span>';
       html += '</div>';
       html += '<div class="vpm-nav-text"><div class="vpm-nav-name">' + esc(stage.label) + '</div>';
@@ -1688,7 +1816,7 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     _updateLastSaved();
   }
 
-  function render() { _refreshSidebarNav(); renderCurrentView(); }
+  function render() { _captureUIState(); _refreshSidebarNav(); renderCurrentView(); }
 
 
   // ============================================================
@@ -1962,6 +2090,7 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
 
   function syncToTextarea() {
     if (!S.$dataField || !S.$dataField.length) return;
+    _captureUIState();
     S.data.video.modified = new Date().toISOString();
     S.$dataField.val(JSON.stringify(S.data));
     S.$metaField.val(JSON.stringify(S.meta));
@@ -2065,7 +2194,8 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
       aiPreferences: { appDefault: { provider: 'gemini', model: 'gemini-2.5-flash' }, lastProvider: '', lastModel: '', imageModel: 'imagen-3', videoModel: 'seedance', globalNegative: 'watermark, text overlay, logo, low quality, blurry, distorted, cartoon, anime', perAction: {}, lastCustomInstructions: {} },
       lookLibrary: [], environmentLibrary: [], sceneLibrary: [],
       brandOverrides: { enabled: false, name: '', tagline: '', primary_color: '', secondary_color: '', accent_color: '', voice: '', target_audience: '', logo_url: '', font_family: '' },
-      studioRequirements: {}
+      studioRequirements: {},
+      _ui: { last_stage: '', start_step: '', selected_clip_id: '', clip_detail_tab: '', studio_tab: '', settings_tab: '', platform_tab: '', thumbnail_step: '', visited_stages: [], updated_at: '' }
     };
   }
 
@@ -2270,6 +2400,8 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
   window._vpmSnapshot = snapshot;
   window._vpmBuildMaps = buildMaps;
   window._vpmSyncToTextarea = syncToTextarea;
+  window._vpmCaptureUIState = _captureUIState;
+  window._vpmRestoreUIState = _restoreUIState;
   window._vpmEvaluateClipStatus = evaluateClipStatus;
   window._vpmMaybeAdvanceClipStatus = maybeAdvanceClipStatus;
   window._vpmCalculateVideoStatus = calculateVideoStatus;

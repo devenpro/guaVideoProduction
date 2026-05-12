@@ -110,6 +110,8 @@ body.vpm-active .region-breadcrumb, body.vpm-active .page-title-wrapper, body.vp
 .vpm-nav-active .vpm-nav-dot { background: var(--vpm-primary); color: var(--vpm-white); box-shadow: 0 2px 8px rgba(26,115,232,0.3); }
 .vpm-nav-done { color: var(--vpm-text-secondary); }
 .vpm-nav-done .vpm-nav-dot { background: var(--vpm-success-light); color: var(--vpm-success); }
+.vpm-nav-visited { color: var(--vpm-text-secondary); }
+.vpm-nav-visited .vpm-nav-dot { background: var(--vpm-gray-100); color: var(--vpm-text-muted); border: 1px dashed var(--vpm-border); }
 .vpm-nav-future { opacity: 0.45; }
 .vpm-nav-dot { width: 30px; height: 30px; border-radius: var(--vpm-radius-sm); background: var(--vpm-gray-100); color: var(--vpm-text-muted); font-size: var(--vpm-font-xs); display: flex; align-items: center; justify-content: center; flex-shrink: 0; transition: all var(--vpm-transition-fast); }
 .vpm-nav-step { font-weight: 800; font-size: 12px; font-family: var(--vpm-font-mono); }
