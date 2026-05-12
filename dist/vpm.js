@@ -1,4 +1,4 @@
-/*! VPM JS bundle — built 2026-05-12T02:56:06.621Z */
+/*! VPM JS bundle — built 2026-05-12T02:59:32.345Z */
 
 /* ===== src/core/constants.js ===== */
 /**
@@ -2318,6 +2318,414 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
 })(jQuery, Drupal);
 
 
+/* ===== src/ui/activity.js ===== */
+/**
+ * Activity stage renderer
+ *
+ * Renders the Activity log with filters (search, type) grouped by date
+ * (Today / Yesterday / This Week / Older).
+ *
+ * Registers on window._vpmRenderers.activityFull — part2a's initPart2A()
+ * used to assign R.activityFull = renderActivityFull. That line is removed
+ * from part2a now; this module owns the registration.
+ *
+ * Dependencies (captured at parse time from window):
+ *   - S (state)             — via window._vpmState
+ *   - Constants             — via window._vpmConstants (ACTIVITY_TYPES)
+ *   - icon, esc, formatRelativeTime — via window._vpm* (set by utils/format.js)
+ *
+ * MUST load AFTER vpm-part1.js (which initializes window._vpmRenderers) and
+ * after utils/format.js. Order vs part2a does not matter.
+ */
+(function () {
+  'use strict';
+
+  var S = window._vpmState;
+  var Constants = window._vpmConstants;
+  var icon = window._vpmIcon;
+  var esc = window._vpmEsc;
+  var formatRelativeTime = window._vpmFormatRelativeTime;
+
+  function renderActivityFull() {
+    var all = S.activity || [];
+    var filtered = _getFilteredActivity();
+    var html = '<div class="vpm-view"><div class="vpm-view-header"><div><h2 class="vpm-view-title">' + icon('clock-rotate-left') + ' Activity</h2>';
+    html += '<p class="vpm-view-subtitle">' + all.length + ' entries</p></div>';
+    html += '<div class="vpm-btn-row">';
+    html += '<button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="export-activity">' + icon('download') + ' Export</button>';
+    if (all.length) html += '<button class="vpm-btn vpm-btn-danger vpm-btn-sm" data-action="clear-activity">' + icon('trash') + ' Clear</button>';
+    html += '</div></div>';
+
+    // Filters
+    html += '<div class="vpm-activity-filters">';
+    html += '<input class="vpm-input vpm-input-sm" style="flex:1;max-width:280px" data-action="filter-activity" placeholder="Search activity…" value="' + esc(S.activityFilter.search || '') + '">';
+    html += '<select class="vpm-select vpm-select-sm" data-action="filter-activity-type"><option value="">All types</option>';
+    for (var atId in Constants.ACTIVITY_TYPES) html += '<option value="' + atId + '"' + (S.activityFilter.type === atId ? ' selected' : '') + '>' + esc(Constants.ACTIVITY_TYPES[atId].label) + '</option>';
+    html += '</select>';
+    if (S.activityFilter.search || S.activityFilter.type) {
+      html += '<button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="clear-activity-filters">' + icon('xmark') + ' Clear Filters</button>';
+      html += '<span class="vpm-text-xs vpm-text-muted">' + filtered.length + ' of ' + all.length + '</span>';
+    }
+    html += '</div>';
+
+    // Empty state
+    if (!filtered.length) {
+      html += '<div class="vpm-empty-hero"><div class="vpm-empty-hero-icon">' + icon('clock-rotate-left') + '</div><h3>No Activity</h3>';
+      html += '<p>' + (all.length ? 'No entries match your filters.' : 'Actions will appear here as you work.') + '</p></div>';
+      html += '</div>';
+      return html;
+    }
+
+    // Group by date
+    var groups = _groupByDate(filtered);
+    for (var gi = 0; gi < groups.length; gi++) {
+      var g = groups[gi];
+      html += '<div class="vpm-activity-group">';
+      html += '<div class="vpm-activity-group-head">' + esc(g.label) + ' <span class="vpm-text-xs vpm-text-muted">(' + g.items.length + ')</span></div>';
+      for (var ai = 0; ai < g.items.length; ai++) {
+        var act = g.items[ai];
+        var at = Constants.ACTIVITY_TYPES[act.type] || { label: act.type, icon: 'circle', color: '#6b7280' };
+        html += '<div class="vpm-activity-item">';
+        html += '<div class="vpm-activity-icon" style="background:' + (at.color || '#6b7280') + '14;color:' + (at.color || '#6b7280') + '">' + icon(at.icon) + '</div>';
+        html += '<div class="vpm-activity-body">';
+        html += '<div class="vpm-activity-desc">' + esc(act.description || '') + '</div>';
+        html += '<div class="vpm-activity-meta">';
+        html += '<span>' + esc(formatRelativeTime(act.timestamp)) + '</span>';
+        if (act.user_name) html += '<span>· ' + esc(act.user_name) + '</span>';
+        html += '<span class="vpm-activity-type-tag" style="color:' + (at.color || '#6b7280') + '">' + esc(at.label) + '</span>';
+        html += '</div></div></div>';
+      }
+      html += '</div>';
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  function _getFilteredActivity() {
+    var all = S.activity || [];
+    var search = (S.activityFilter.search || '').toLowerCase();
+    var typeF = S.activityFilter.type || '';
+    return all.filter(function (a) {
+      if (typeF && a.type !== typeF) return false;
+      if (search && (a.description || '').toLowerCase().indexOf(search) === -1 && (a.type || '').toLowerCase().indexOf(search) === -1) return false;
+      return true;
+    });
+  }
+
+  function _groupByDate(items) {
+    var now = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    var yesterday = today - 86400000;
+    var weekAgo = today - 7 * 86400000;
+    var groups = { today: { label: 'Today', items: [] }, yesterday: { label: 'Yesterday', items: [] }, week: { label: 'This Week', items: [] }, older: { label: 'Older', items: [] } };
+    for (var i = 0; i < items.length; i++) {
+      var ts = new Date(items[i].timestamp || 0).getTime();
+      if (ts >= today) groups.today.items.push(items[i]);
+      else if (ts >= yesterday) groups.yesterday.items.push(items[i]);
+      else if (ts >= weekAgo) groups.week.items.push(items[i]);
+      else groups.older.items.push(items[i]);
+    }
+    var result = [];
+    if (groups.today.items.length) result.push(groups.today);
+    if (groups.yesterday.items.length) result.push(groups.yesterday);
+    if (groups.week.items.length) result.push(groups.week);
+    if (groups.older.items.length) result.push(groups.older);
+    return result;
+  }
+
+  // Register on the shared renderer map (set up by vpm-part1.js)
+  window._vpmRenderers = window._vpmRenderers || {};
+  window._vpmRenderers.activityFull = renderActivityFull;
+})();
+
+
+/* ===== src/ui/research.js ===== */
+/**
+ * Research stage renderer (Advanced mode only)
+ *
+ * Renders the Research grid with 4 panels (audience insights, competitor
+ * analysis, trending angles, content strategy) plus a Reference Sources list.
+ * Inline-editable per panel via the pen button.
+ *
+ * Registers on window._vpmRenderers.researchFull.
+ *
+ * Dependencies (captured at parse time from window):
+ *   - S, Constants, icon, esc, truncate, badge, formatRelativeTime
+ *   - renderNavButtons (from part1)
+ *
+ * MUST load AFTER vpm-part1.js and utils/format.js.
+ */
+(function () {
+  'use strict';
+
+  var S = window._vpmState;
+  var icon = window._vpmIcon;
+  var esc = window._vpmEsc;
+  var truncate = window._vpmTruncate;
+  var badge = window._vpmBadge;
+  var formatRelativeTime = window._vpmFormatRelativeTime;
+  var renderNavButtons = window._vpmRenderNavButtons;
+
+  function renderResearchFull() {
+    var res = S.data.research || {};
+    var sources = res.sources || [];
+
+    var html = '<div class="vpm-view"><div class="vpm-view-header"><div><h2 class="vpm-view-title">' + icon('magnifying-glass') + ' Research</h2>';
+    html += '<p class="vpm-view-subtitle">AI-powered content research for better videos</p></div>';
+    html += '<div class="vpm-btn-row">';
+    html += '<button class="vpm-btn vpm-btn-ai" data-action="ai-generate-research">' + icon('sparkles') + ' Generate Research Brief</button>';
+    if (res.generated) html += '<span class="vpm-text-success vpm-text-sm">' + icon('circle-check') + ' Generated ' + formatRelativeTime(res.generated_at || '') + '</span>';
+    html += '</div></div>';
+
+    // Info banner if no idea yet
+    if (!S.data.start.raw_input && !res.generated) {
+      html += '<div class="vpm-info-banner">' + icon('info') + ' Enter your video idea in the Start stage first. AI uses your prompt + preferences to generate targeted research.</div>';
+    }
+
+    // Empty state
+    if (!res.generated && !res.audience_insights && !res.competitor_analysis && !res.content_strategy && !res.trending_angles) {
+      html += '<div class="vpm-empty-hero"><div class="vpm-empty-hero-icon">' + icon('magnifying-glass') + '</div>';
+      html += '<h3>Research Your Topic</h3>';
+      html += '<p>AI analyzes your video idea to uncover audience insights, competitor gaps, trending angles, and a content strategy.</p>';
+      html += '<button class="vpm-btn vpm-btn-ai" data-action="ai-generate-research">' + icon('sparkles') + ' Generate Research Brief</button>';
+      html += '<div class="vpm-research-step-hints">';
+      var hints = ['Audience insights', 'Competitor analysis', 'Trending angles', 'Content strategy'];
+      for (var hi = 0; hi < hints.length; hi++) html += '<div class="vpm-research-step-hint"><span class="vpm-research-step-num">' + (hi + 1) + '</span> ' + esc(hints[hi]) + '</div>';
+      html += '</div></div>';
+    } else {
+      // 4 research panels in 2x2 grid
+      var panels = [
+        { key: 'audience_insights', label: 'Audience Insights', icon: 'users', color: '#1a73e8', desc: 'Target demographics, pain points, search intent, viewing habits' },
+        { key: 'competitor_analysis', label: 'Competitor Analysis', icon: 'chart-bar', color: '#7c3aed', desc: 'Top-performing videos, content gaps, positioning opportunities' },
+        { key: 'trending_angles', label: 'Trending Angles', icon: 'bolt', color: '#e37400', desc: 'Current trends, hot topics, viral hooks, seasonal relevance' },
+        { key: 'content_strategy', label: 'Content Strategy', icon: 'compass-drafting', color: '#0d904f', desc: 'Recommended approach, structure, hooks, differentiation' }
+      ];
+
+      html += '<div class="vpm-research-grid">';
+      for (var pi = 0; pi < panels.length; pi++) {
+        var p = panels[pi];
+        var content = res[p.key] || '';
+        html += '<div class="vpm-research-panel" style="border-top-color:' + p.color + '">';
+        html += '<div class="vpm-research-panel-head">';
+        html += '<div class="vpm-research-panel-icon" style="background:' + p.color + '12;color:' + p.color + '">' + icon(p.icon) + '</div>';
+        html += '<div class="vpm-research-panel-title">' + esc(p.label) + '</div>';
+        html += '<div class="vpm-btn-row" style="margin-left:auto">';
+        html += '<button class="vpm-btn-icon-sm" data-action="ai-regenerate-research-section" data-section="' + p.key + '" title="Regenerate">' + icon('sparkles') + '</button>';
+        html += '<button class="vpm-btn-icon-sm" data-action="edit-research-section" data-section="' + p.key + '" title="Edit">' + icon('pen') + '</button>';
+        html += '<button class="vpm-btn-icon-sm" data-action="copy-prompt" data-text="' + esc(content) + '" title="Copy">' + icon('copy') + '</button>';
+        html += '</div></div>';
+        html += '<div class="vpm-research-panel-desc">' + esc(p.desc) + '</div>';
+        if (content) {
+          html += '<div class="vpm-research-panel-content" data-research-section="' + p.key + '">';
+          html += '<div class="vpm-research-text">' + _formatResearchContent(content) + '</div>';
+          html += '<textarea class="vpm-research-inline-edit vpm-textarea" data-action="inline-edit-research" data-section="' + p.key + '" rows="6" style="display:none">' + esc(typeof content === 'string' ? content : '') + '</textarea>';
+          html += '</div>';
+        } else {
+          html += '<div class="vpm-research-panel-empty">';
+          html += '<button class="vpm-btn vpm-btn-ai vpm-btn-sm" data-action="ai-regenerate-research-section" data-section="' + p.key + '">' + icon('sparkles') + ' Generate ' + esc(p.label) + '</button>';
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    // --- Reference Sources ---
+    html += '<div class="vpm-panel"><div class="vpm-flex-between vpm-mb-sm"><span class="vpm-panel-title" style="margin:0">' + icon('link') + ' Reference Sources</span>';
+    html += '<button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="add-research-source">' + icon('plus') + ' Add Source</button></div>';
+    if (sources.length) {
+      for (var si = 0; si < sources.length; si++) {
+        var src = sources[si];
+        html += '<div class="vpm-research-source">';
+        html += '<div class="vpm-research-source-info">';
+        if (src.url) html += '<a href="' + esc(src.url) + '" target="_blank" class="vpm-research-source-url">' + icon('link') + ' ' + esc(truncate(src.title || src.url, 60)) + '</a>';
+        else html += '<span class="vpm-text-sm">' + esc(src.title || 'Untitled') + '</span>';
+        if (src.type) html += ' ' + badge(src.type, src.type === 'competitor' ? '#7c3aed' : src.type === 'reference' ? '#1a73e8' : src.type === 'inspiration' ? '#e37400' : '#6b7280');
+        if (src.notes) html += '<div class="vpm-text-xs vpm-text-muted">' + esc(src.notes) + '</div>';
+        html += '</div>';
+        html += '<button class="vpm-btn-icon-sm" data-action="delete-research-source" data-idx="' + si + '" style="color:var(--vpm-error)">' + icon('trash') + '</button>';
+        html += '</div>';
+      }
+    } else {
+      html += '<p class="vpm-text-sm vpm-text-muted" style="text-align:center;padding:8px">No sources yet. Add competitor videos, articles, or references to guide AI research.</p>';
+    }
+    html += '</div>';
+
+    html += renderNavButtons('Start', 'Continue to Blueprint', 'blueprint');
+    html += '</div>';
+    return html;
+  }
+
+  function _formatResearchContent(text) {
+    if (!text) return '';
+    // Safety: ensure we have a string (prevents [object Object])
+    if (typeof text !== 'string') {
+      if (typeof text === 'object') {
+        if (text.content) text = text.content;
+        else if (text.text) text = text.text;
+        else try { text = JSON.stringify(text, null, 2); } catch (e) { text = String(text); }
+      } else { text = String(text); }
+    }
+    var h = esc(text);
+    // Format markdown-like lists
+    h = h.replace(/^[-•]\s/gm, '• ');
+    h = h.replace(/^\d+\.\s/gm, function (m) { return '<strong>' + m.trim() + '</strong> '; });
+    h = h.replace(/\n\n+/g, '</p><p>');
+    h = h.replace(/\n/g, '<br>');
+    return '<p>' + h + '</p>';
+  }
+
+  window._vpmRenderers = window._vpmRenderers || {};
+  window._vpmRenderers.researchFull = renderResearchFull;
+})();
+
+
+/* ===== src/ui/blueprint.js ===== */
+/**
+ * Blueprint stage renderer
+ *
+ * Renders the Blueprint view — video overview (inline editable: title, target
+ * audience, tone, description), duration allocation bar, section cards with
+ * key points and visual notes, confirm flow.
+ *
+ * Registers on window._vpmRenderers.blueprintFull.
+ *
+ * Dependencies (captured at parse time from window):
+ *   - S, Constants (TONES)
+ *   - icon, esc, formatDuration, formatDate, progressBar (from utils/format.js)
+ *   - renderNavButtons (from part1)
+ *
+ * MUST load AFTER vpm-part1.js and utils/format.js.
+ */
+(function () {
+  'use strict';
+
+  var S = window._vpmState;
+  var Constants = window._vpmConstants;
+  var icon = window._vpmIcon;
+  var esc = window._vpmEsc;
+  var formatDuration = window._vpmFormatDuration;
+  var formatDate = window._vpmFormatDate;
+  var progressBar = window._vpmProgressBar;
+  var renderNavButtons = window._vpmRenderNavButtons;
+
+  function renderBlueprintFull() {
+    var bp = S.data.blueprint || {};
+    var v = S.data.video || {};
+    var sections = bp.sections || [];
+    var totalDur = 0;
+    for (var i = 0; i < sections.length; i++) totalDur += (sections[i].duration || 0);
+    var targetDur = v.duration_target || (S.data.start && S.data.start.preferences ? S.data.start.preferences.target_duration : 120) || 120;
+
+    var html = '<div class="vpm-view"><div class="vpm-view-header"><div><h2 class="vpm-view-title">' + icon('compass-drafting') + ' Blueprint</h2>';
+    html += '<p class="vpm-view-subtitle">Plan your video structure & sections</p></div>';
+    html += '<div class="vpm-btn-row">';
+    html += '<button class="vpm-btn vpm-btn-ai" data-action="ai-generate-blueprint">' + icon('sparkles') + ' Generate Blueprint</button>';
+    if (bp.confirmed) html += '<span class="vpm-text-success">' + icon('circle-check') + ' Confirmed</span>';
+    html += '</div></div>';
+
+    // --- Video Overview (inline editable) ---
+    html += '<div class="vpm-panel"><div class="vpm-panel-title">' + icon('info') + ' Video Overview</div>';
+    html += '<div class="vpm-form-grid">';
+    html += '<div class="vpm-form-group"><label class="vpm-form-label">Title</label>';
+    html += '<input class="vpm-input" data-action="save-bp-field" data-path="blueprint.title" value="' + esc(bp.title || '') + '" placeholder="Video title…"></div>';
+    html += '<div class="vpm-form-group"><label class="vpm-form-label">Target Duration</label>';
+    html += '<div class="vpm-input-display">' + formatDuration(targetDur) + ' (' + targetDur + 's)</div></div>';
+    html += '<div class="vpm-form-group"><label class="vpm-form-label">Target Audience</label>';
+    html += '<input class="vpm-input" data-action="save-bp-field" data-path="blueprint.target_audience" value="' + esc(bp.target_audience || '') + '" placeholder="Who is this video for?"></div>';
+    html += '<div class="vpm-form-group"><label class="vpm-form-label">Tone</label>';
+    html += '<select class="vpm-select" data-action="save-bp-field" data-path="blueprint.tone">';
+    html += '<option value="">Select…</option>';
+    for (var tid in Constants.TONES) {
+      html += '<option value="' + tid + '"' + (bp.tone === tid ? ' selected' : '') + '>' + esc(Constants.TONES[tid].label) + '</option>';
+    }
+    html += '</select></div>';
+    html += '</div>';
+    html += '<div class="vpm-form-group"><label class="vpm-form-label">Description</label>';
+    html += '<textarea class="vpm-textarea" data-action="save-bp-field" data-path="blueprint.description" rows="2" placeholder="Brief overview of what this video covers…">' + esc(bp.description || '') + '</textarea></div>';
+    html += '</div>';
+
+    // --- Duration Allocation Bar ---
+    if (sections.length > 0) {
+      html += '<div class="vpm-panel vpm-bp-dur-panel">';
+      html += '<div class="vpm-flex-between vpm-mb-sm"><span class="vpm-text-label">Duration Allocation</span>';
+      html += '<span class="vpm-text-sm' + (totalDur > targetDur ? ' vpm-text-error' : ' vpm-text-success') + '">' + totalDur + 's / ' + targetDur + 's target</span></div>';
+      html += '<div class="vpm-bp-dur-track">';
+      var _durColors = ['#d3e4fd', '#e8f0fe', '#d3e4fd', '#e8f0fe', '#ceead6', '#d3e4fd', '#fef7e0', '#e8f0fe', '#ceead6', '#f3e8ff'];
+      for (var di = 0; di < sections.length; di++) {
+        var sec = sections[di];
+        var durPct = targetDur > 0 ? Math.max(2, Math.round((sec.duration / targetDur) * 100)) : 10;
+        html += '<div class="vpm-bp-dur-seg" style="flex:' + (sec.duration || 1) + ';background:' + _durColors[di % _durColors.length] + '" title="' + esc(sec.label) + ': ' + (sec.duration || 0) + 's">';
+        html += '<span>' + (sec.duration || 0) + 's</span></div>';
+      }
+      html += '</div>';
+      html += progressBar(Math.min(100, Math.round((totalDur / targetDur) * 100)), totalDur > targetDur ? 'var(--vpm-error)' : 'var(--vpm-primary)');
+      html += '</div>';
+    }
+
+    // --- Section Cards ---
+    html += '<div class="vpm-bp-sections">';
+    html += '<div class="vpm-flex-between vpm-mb-sm"><span class="vpm-panel-title" style="margin-bottom:0">' + icon('list') + ' Sections</span>';
+    html += '<span class="vpm-badge vpm-badge-outline">' + sections.length + ' sections</span></div>';
+
+    if (!sections.length) {
+      html += '<div class="vpm-empty-hero"><div class="vpm-empty-hero-icon">' + icon('compass-drafting') + '</div>';
+      html += '<h3>No Sections Yet</h3><p>Click "Generate Blueprint" to auto-create sections from your video idea, or add sections manually below.</p></div>';
+    }
+
+    for (var si = 0; si < sections.length; si++) {
+      var sec = sections[si];
+      html += '<div class="vpm-bp-card" data-section-idx="' + si + '">';
+      html += '<div class="vpm-bp-card-left">';
+      html += '<span class="vpm-bp-drag" title="Drag to reorder">' + icon('grip-vertical') + '</span>';
+      html += '<span class="vpm-bp-num">' + (si + 1) + '</span>';
+      html += '</div>';
+      html += '<div class="vpm-bp-card-body">';
+      // Header row: label + duration + actions
+      html += '<div class="vpm-bp-card-head">';
+      html += '<input class="vpm-bp-card-label-input" value="' + esc(sec.label || '') + '" data-action="save-bp-section-field" data-idx="' + si + '" data-field="label" placeholder="Section name">';
+      html += '<div class="vpm-bp-card-dur-input"><input class="vpm-input vpm-input-sm vpm-bp-dur-input-field" type="number" min="1" max="600" value="' + (sec.duration || 0) + '" data-action="save-bp-section-field" data-idx="' + si + '" data-field="duration" style="width:60px">s</div>';
+      html += '<div class="vpm-bp-card-actions">';
+      if (si > 0) html += '<button class="vpm-btn-icon-sm" data-action="move-bp-section" data-idx="' + si + '" data-dir="up" title="Move up">' + icon('chevron-up') + '</button>';
+      if (si < sections.length - 1) html += '<button class="vpm-btn-icon-sm" data-action="move-bp-section" data-idx="' + si + '" data-dir="down" title="Move down">' + icon('chevron-down') + '</button>';
+      html += '<button class="vpm-btn-icon-sm" data-action="delete-bp-section" data-idx="' + si + '" title="Delete section" style="color:var(--vpm-error)">' + icon('trash') + '</button>';
+      html += '</div></div>';
+      // Key points
+      html += '<div class="vpm-bp-card-field"><textarea class="vpm-textarea vpm-bp-card-textarea" data-action="save-bp-section-field" data-idx="' + si + '" data-field="key_points" rows="2" placeholder="Key points, topics to cover…">' + esc(Array.isArray(sec.key_points) ? sec.key_points.join('\n') : (sec.key_points || '')) + '</textarea></div>';
+      // Visual notes
+      html += '<div class="vpm-bp-card-visual">' + icon('image') + ' <input class="vpm-bp-visual-input" value="' + esc(sec.visual_notes || '') + '" data-action="save-bp-section-field" data-idx="' + si + '" data-field="visual_notes" placeholder="Visual approach notes…"></div>';
+      html += '</div></div>';
+    }
+
+    // Add section button
+    html += '<button class="vpm-bp-add-btn" data-action="add-bp-section">' + icon('plus') + ' Add Section</button>';
+    html += '</div>';
+
+    // Style notes
+    html += '<div class="vpm-panel"><div class="vpm-form-group"><label class="vpm-form-label">Global Style Notes</label>';
+    html += '<textarea class="vpm-textarea" data-action="save-bp-field" data-path="blueprint.style_notes" rows="2" placeholder="Overall visual style, color palette, reference videos…">' + esc(bp.style_notes || '') + '</textarea></div></div>';
+
+    // Confirm button
+    html += '<div class="vpm-bp-confirm">';
+    if (bp.confirmed) {
+      html += '<div class="vpm-info-banner">' + icon('circle-check') + ' Blueprint confirmed on ' + formatDate(bp.confirmed_at) + '. <button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="unlock-blueprint">' + icon('lock') + ' Unlock & Edit</button></div>';
+    } else {
+      html += '<button class="vpm-btn vpm-btn-primary vpm-btn-full" data-action="confirm-blueprint"' + (sections.length < 1 ? ' disabled' : '') + '>' + icon('check') + ' Confirm Blueprint</button>';
+    }
+    html += '</div>';
+
+    var prevStage = S.mode === 'advanced' ? 'Research' : 'Start';
+    html += renderNavButtons(prevStage, 'Continue to Script', 'script');
+    html += '</div>';
+    return html;
+  }
+
+  window._vpmRenderers = window._vpmRenderers || {};
+  window._vpmRenderers.blueprintFull = renderBlueprintFull;
+})();
+
+
 /* ===== src/ui/vpm-part2a.js ===== */
 /**
  * AI Video Production Manager v1.0 - Part 2A: CRUD & Editing Engine
@@ -2427,13 +2835,10 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     // Register renderers (all stages + utilities)
     var R = window._vpmRenderers;
     R.startFull = renderStartFull;
-    R.researchFull = renderResearchFull;
-    R.blueprintFull = renderBlueprintFull;
     R.scriptFull = renderScriptFull;
     R.studioFull = renderStudioFull;
     R.clipsFull = renderClipsFull;
     R.publishFull = renderPublishFull;
-    R.activityFull = renderActivityFull;
 
     setupPart2AEvents();
     _snapshotFull('Initial state');
@@ -3724,236 +4129,6 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     if (coverage.hasScript) importedParts.push('script');
     if (coverage.hasResearch) importedParts.push('research');
     toast('Imported: ' + importedParts.join(', ') + '. Review and fill any gaps.', 'success');
-  }
-
-
-  // ============================================================
-  // SECTION 6: RESEARCH VIEW — FULL (Advanced mode only)
-  // ============================================================
-
-  function renderResearchFull() {
-    var res = S.data.research || {};
-    var sources = res.sources || [];
-
-    var html = '<div class="vpm-view"><div class="vpm-view-header"><div><h2 class="vpm-view-title">' + icon('magnifying-glass') + ' Research</h2>';
-    html += '<p class="vpm-view-subtitle">AI-powered content research for better videos</p></div>';
-    html += '<div class="vpm-btn-row">';
-    html += '<button class="vpm-btn vpm-btn-ai" data-action="ai-generate-research">' + icon('sparkles') + ' Generate Research Brief</button>';
-    if (res.generated) html += '<span class="vpm-text-success vpm-text-sm">' + icon('circle-check') + ' Generated ' + formatRelativeTime(res.generated_at || '') + '</span>';
-    html += '</div></div>';
-
-    // Info banner if no idea yet
-    if (!S.data.start.raw_input && !res.generated) {
-      html += '<div class="vpm-info-banner">' + icon('info') + ' Enter your video idea in the Start stage first. AI uses your prompt + preferences to generate targeted research.</div>';
-    }
-
-    // Empty state
-    if (!res.generated && !res.audience_insights && !res.competitor_analysis && !res.content_strategy && !res.trending_angles) {
-      html += '<div class="vpm-empty-hero"><div class="vpm-empty-hero-icon">' + icon('magnifying-glass') + '</div>';
-      html += '<h3>Research Your Topic</h3>';
-      html += '<p>AI analyzes your video idea to uncover audience insights, competitor gaps, trending angles, and a content strategy.</p>';
-      html += '<button class="vpm-btn vpm-btn-ai" data-action="ai-generate-research">' + icon('sparkles') + ' Generate Research Brief</button>';
-      html += '<div class="vpm-research-step-hints">';
-      var hints = ['Audience insights','Competitor analysis','Trending angles','Content strategy'];
-      for (var hi = 0; hi < hints.length; hi++) html += '<div class="vpm-research-step-hint"><span class="vpm-research-step-num">' + (hi+1) + '</span> ' + esc(hints[hi]) + '</div>';
-      html += '</div></div>';
-    } else {
-      // 4 research panels in 2x2 grid
-      var panels = [
-        { key: 'audience_insights',   label: 'Audience Insights',   icon: 'users',            color: '#1a73e8', desc: 'Target demographics, pain points, search intent, viewing habits' },
-        { key: 'competitor_analysis', label: 'Competitor Analysis',  icon: 'chart-bar',        color: '#7c3aed', desc: 'Top-performing videos, content gaps, positioning opportunities' },
-        { key: 'trending_angles',     label: 'Trending Angles',     icon: 'bolt',             color: '#e37400', desc: 'Current trends, hot topics, viral hooks, seasonal relevance' },
-        { key: 'content_strategy',    label: 'Content Strategy',    icon: 'compass-drafting', color: '#0d904f', desc: 'Recommended approach, structure, hooks, differentiation' }
-      ];
-
-      html += '<div class="vpm-research-grid">';
-      for (var pi = 0; pi < panels.length; pi++) {
-        var p = panels[pi];
-        var content = res[p.key] || '';
-        html += '<div class="vpm-research-panel" style="border-top-color:' + p.color + '">';
-        html += '<div class="vpm-research-panel-head">';
-        html += '<div class="vpm-research-panel-icon" style="background:' + p.color + '12;color:' + p.color + '">' + icon(p.icon) + '</div>';
-        html += '<div class="vpm-research-panel-title">' + esc(p.label) + '</div>';
-        html += '<div class="vpm-btn-row" style="margin-left:auto">';
-        html += '<button class="vpm-btn-icon-sm" data-action="ai-regenerate-research-section" data-section="' + p.key + '" title="Regenerate">' + icon('sparkles') + '</button>';
-        html += '<button class="vpm-btn-icon-sm" data-action="edit-research-section" data-section="' + p.key + '" title="Edit">' + icon('pen') + '</button>';
-        html += '<button class="vpm-btn-icon-sm" data-action="copy-prompt" data-text="' + esc(content) + '" title="Copy">' + icon('copy') + '</button>';
-        html += '</div></div>';
-        html += '<div class="vpm-research-panel-desc">' + esc(p.desc) + '</div>';
-        if (content) {
-          html += '<div class="vpm-research-panel-content" data-research-section="' + p.key + '">';
-          html += '<div class="vpm-research-text">' + _formatResearchContent(content) + '</div>';
-          html += '<textarea class="vpm-research-inline-edit vpm-textarea" data-action="inline-edit-research" data-section="' + p.key + '" rows="6" style="display:none">' + esc(typeof content === 'string' ? content : '') + '</textarea>';
-          html += '</div>';
-        } else {
-          html += '<div class="vpm-research-panel-empty">';
-          html += '<button class="vpm-btn vpm-btn-ai vpm-btn-sm" data-action="ai-regenerate-research-section" data-section="' + p.key + '">' + icon('sparkles') + ' Generate ' + esc(p.label) + '</button>';
-          html += '</div>';
-        }
-        html += '</div>';
-      }
-      html += '</div>';
-    }
-
-    // --- Reference Sources ---
-    html += '<div class="vpm-panel"><div class="vpm-flex-between vpm-mb-sm"><span class="vpm-panel-title" style="margin:0">' + icon('link') + ' Reference Sources</span>';
-    html += '<button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="add-research-source">' + icon('plus') + ' Add Source</button></div>';
-    if (sources.length) {
-      for (var si = 0; si < sources.length; si++) {
-        var src = sources[si];
-        html += '<div class="vpm-research-source">';
-        html += '<div class="vpm-research-source-info">';
-        if (src.url) html += '<a href="' + esc(src.url) + '" target="_blank" class="vpm-research-source-url">' + icon('link') + ' ' + esc(truncate(src.title || src.url, 60)) + '</a>';
-        else html += '<span class="vpm-text-sm">' + esc(src.title || 'Untitled') + '</span>';
-        if (src.type) html += ' ' + badge(src.type, src.type === 'competitor' ? '#7c3aed' : src.type === 'reference' ? '#1a73e8' : src.type === 'inspiration' ? '#e37400' : '#6b7280');
-        if (src.notes) html += '<div class="vpm-text-xs vpm-text-muted">' + esc(src.notes) + '</div>';
-        html += '</div>';
-        html += '<button class="vpm-btn-icon-sm" data-action="delete-research-source" data-idx="' + si + '" style="color:var(--vpm-error)">' + icon('trash') + '</button>';
-        html += '</div>';
-      }
-    } else {
-      html += '<p class="vpm-text-sm vpm-text-muted" style="text-align:center;padding:8px">No sources yet. Add competitor videos, articles, or references to guide AI research.</p>';
-    }
-    html += '</div>';
-
-    html += renderNavButtons('Start', 'Continue to Blueprint', 'blueprint');
-    html += '</div>';
-    return html;
-  }
-
-  function _formatResearchContent(text) {
-    if (!text) return '';
-    // Safety: ensure we have a string (prevents [object Object])
-    if (typeof text !== 'string') {
-      if (typeof text === 'object') {
-        if (text.content) text = text.content;
-        else if (text.text) text = text.text;
-        else try { text = JSON.stringify(text, null, 2); } catch(e) { text = String(text); }
-      } else { text = String(text); }
-    }
-    var h = esc(text);
-    // Format markdown-like lists
-    h = h.replace(/^[-•]\s/gm, '\u2022 ');
-    h = h.replace(/^\d+\.\s/gm, function(m) { return '<strong>' + m.trim() + '</strong> '; });
-    h = h.replace(/\n\n+/g, '</p><p>');
-    h = h.replace(/\n/g, '<br>');
-    return '<p>' + h + '</p>';
-  }
-
-
-  // ============================================================
-  // SECTION 7: BLUEPRINT VIEW — FULL
-  // ============================================================
-
-  function renderBlueprintFull() {
-    var bp = S.data.blueprint || {};
-    var v = S.data.video || {};
-    var sections = bp.sections || [];
-    var totalDur = 0;
-    for (var i = 0; i < sections.length; i++) totalDur += (sections[i].duration || 0);
-    var targetDur = v.duration_target || (S.data.start && S.data.start.preferences ? S.data.start.preferences.target_duration : 120) || 120;
-
-    var html = '<div class="vpm-view"><div class="vpm-view-header"><div><h2 class="vpm-view-title">' + icon('compass-drafting') + ' Blueprint</h2>';
-    html += '<p class="vpm-view-subtitle">Plan your video structure & sections</p></div>';
-    html += '<div class="vpm-btn-row">';
-    html += '<button class="vpm-btn vpm-btn-ai" data-action="ai-generate-blueprint">' + icon('sparkles') + ' Generate Blueprint</button>';
-    if (bp.confirmed) html += '<span class="vpm-text-success">' + icon('circle-check') + ' Confirmed</span>';
-    html += '</div></div>';
-
-    // --- Video Overview (inline editable) ---
-    html += '<div class="vpm-panel"><div class="vpm-panel-title">' + icon('info') + ' Video Overview</div>';
-    html += '<div class="vpm-form-grid">';
-    html += '<div class="vpm-form-group"><label class="vpm-form-label">Title</label>';
-    html += '<input class="vpm-input" data-action="save-bp-field" data-path="blueprint.title" value="' + esc(bp.title || '') + '" placeholder="Video title\u2026"></div>';
-    html += '<div class="vpm-form-group"><label class="vpm-form-label">Target Duration</label>';
-    html += '<div class="vpm-input-display">' + formatDuration(targetDur) + ' (' + targetDur + 's)</div></div>';
-    html += '<div class="vpm-form-group"><label class="vpm-form-label">Target Audience</label>';
-    html += '<input class="vpm-input" data-action="save-bp-field" data-path="blueprint.target_audience" value="' + esc(bp.target_audience || '') + '" placeholder="Who is this video for?"></div>';
-    html += '<div class="vpm-form-group"><label class="vpm-form-label">Tone</label>';
-    html += '<select class="vpm-select" data-action="save-bp-field" data-path="blueprint.tone">';
-    html += '<option value="">Select\u2026</option>';
-    for (var tid in Constants.TONES) {
-      html += '<option value="' + tid + '"' + (bp.tone === tid ? ' selected' : '') + '>' + esc(Constants.TONES[tid].label) + '</option>';
-    }
-    html += '</select></div>';
-    html += '</div>';
-    html += '<div class="vpm-form-group"><label class="vpm-form-label">Description</label>';
-    html += '<textarea class="vpm-textarea" data-action="save-bp-field" data-path="blueprint.description" rows="2" placeholder="Brief overview of what this video covers\u2026">' + esc(bp.description || '') + '</textarea></div>';
-    html += '</div>';
-
-    // --- Duration Allocation Bar ---
-    if (sections.length > 0) {
-      html += '<div class="vpm-panel vpm-bp-dur-panel">';
-      html += '<div class="vpm-flex-between vpm-mb-sm"><span class="vpm-text-label">Duration Allocation</span>';
-      html += '<span class="vpm-text-sm' + (totalDur > targetDur ? ' vpm-text-error' : ' vpm-text-success') + '">' + totalDur + 's / ' + targetDur + 's target</span></div>';
-      html += '<div class="vpm-bp-dur-track">';
-      var _durColors = ['#d3e4fd', '#e8f0fe', '#d3e4fd', '#e8f0fe', '#ceead6', '#d3e4fd', '#fef7e0', '#e8f0fe', '#ceead6', '#f3e8ff'];
-      for (var di = 0; di < sections.length; di++) {
-        var sec = sections[di];
-        var durPct = targetDur > 0 ? Math.max(2, Math.round((sec.duration / targetDur) * 100)) : 10;
-        html += '<div class="vpm-bp-dur-seg" style="flex:' + (sec.duration || 1) + ';background:' + _durColors[di % _durColors.length] + '" title="' + esc(sec.label) + ': ' + (sec.duration || 0) + 's">';
-        html += '<span>' + (sec.duration || 0) + 's</span></div>';
-      }
-      html += '</div>';
-      html += progressBar(Math.min(100, Math.round((totalDur / targetDur) * 100)), totalDur > targetDur ? 'var(--vpm-error)' : 'var(--vpm-primary)');
-      html += '</div>';
-    }
-
-    // --- Section Cards ---
-    html += '<div class="vpm-bp-sections">';
-    html += '<div class="vpm-flex-between vpm-mb-sm"><span class="vpm-panel-title" style="margin-bottom:0">' + icon('list') + ' Sections</span>';
-    html += '<span class="vpm-badge vpm-badge-outline">' + sections.length + ' sections</span></div>';
-
-    if (!sections.length) {
-      html += '<div class="vpm-empty-hero"><div class="vpm-empty-hero-icon">' + icon('compass-drafting') + '</div>';
-      html += '<h3>No Sections Yet</h3><p>Click "Generate Blueprint" to auto-create sections from your video idea, or add sections manually below.</p></div>';
-    }
-
-    for (var si = 0; si < sections.length; si++) {
-      var sec = sections[si];
-      html += '<div class="vpm-bp-card" data-section-idx="' + si + '">';
-      html += '<div class="vpm-bp-card-left">';
-      html += '<span class="vpm-bp-drag" title="Drag to reorder">' + icon('grip-vertical') + '</span>';
-      html += '<span class="vpm-bp-num">' + (si + 1) + '</span>';
-      html += '</div>';
-      html += '<div class="vpm-bp-card-body">';
-      // Header row: label + duration + actions
-      html += '<div class="vpm-bp-card-head">';
-      html += '<input class="vpm-bp-card-label-input" value="' + esc(sec.label || '') + '" data-action="save-bp-section-field" data-idx="' + si + '" data-field="label" placeholder="Section name">';
-      html += '<div class="vpm-bp-card-dur-input"><input class="vpm-input vpm-input-sm vpm-bp-dur-input-field" type="number" min="1" max="600" value="' + (sec.duration || 0) + '" data-action="save-bp-section-field" data-idx="' + si + '" data-field="duration" style="width:60px">s</div>';
-      html += '<div class="vpm-bp-card-actions">';
-      if (si > 0) html += '<button class="vpm-btn-icon-sm" data-action="move-bp-section" data-idx="' + si + '" data-dir="up" title="Move up">' + icon('chevron-up') + '</button>';
-      if (si < sections.length - 1) html += '<button class="vpm-btn-icon-sm" data-action="move-bp-section" data-idx="' + si + '" data-dir="down" title="Move down">' + icon('chevron-down') + '</button>';
-      html += '<button class="vpm-btn-icon-sm" data-action="delete-bp-section" data-idx="' + si + '" title="Delete section" style="color:var(--vpm-error)">' + icon('trash') + '</button>';
-      html += '</div></div>';
-      // Key points
-      html += '<div class="vpm-bp-card-field"><textarea class="vpm-textarea vpm-bp-card-textarea" data-action="save-bp-section-field" data-idx="' + si + '" data-field="key_points" rows="2" placeholder="Key points, topics to cover\u2026">' + esc(Array.isArray(sec.key_points) ? sec.key_points.join('\n') : (sec.key_points || '')) + '</textarea></div>';
-      // Visual notes
-      html += '<div class="vpm-bp-card-visual">' + icon('image') + ' <input class="vpm-bp-visual-input" value="' + esc(sec.visual_notes || '') + '" data-action="save-bp-section-field" data-idx="' + si + '" data-field="visual_notes" placeholder="Visual approach notes\u2026"></div>';
-      html += '</div></div>';
-    }
-
-    // Add section button
-    html += '<button class="vpm-bp-add-btn" data-action="add-bp-section">' + icon('plus') + ' Add Section</button>';
-    html += '</div>';
-
-    // Style notes
-    html += '<div class="vpm-panel"><div class="vpm-form-group"><label class="vpm-form-label">Global Style Notes</label>';
-    html += '<textarea class="vpm-textarea" data-action="save-bp-field" data-path="blueprint.style_notes" rows="2" placeholder="Overall visual style, color palette, reference videos\u2026">' + esc(bp.style_notes || '') + '</textarea></div></div>';
-
-    // Confirm button
-    html += '<div class="vpm-bp-confirm">';
-    if (bp.confirmed) {
-      html += '<div class="vpm-info-banner">' + icon('circle-check') + ' Blueprint confirmed on ' + formatDate(bp.confirmed_at) + '. <button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="unlock-blueprint">' + icon('lock') + ' Unlock & Edit</button></div>';
-    } else {
-      html += '<button class="vpm-btn vpm-btn-primary vpm-btn-full" data-action="confirm-blueprint"' + (sections.length < 1 ? ' disabled' : '') + '>' + icon('check') + ' Confirm Blueprint</button>';
-    }
-    html += '</div>';
-
-    var prevStage = S.mode === 'advanced' ? 'Research' : 'Start';
-    html += renderNavButtons(prevStage, 'Continue to Script', 'script');
-    html += '</div>';
-    return html;
   }
 
 
@@ -5843,95 +6018,6 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
   // ============================================================
   // SECTION 18: ACTIVITY VIEW — FULL (date-grouped, clear, export)
   // ============================================================
-
-  function renderActivityFull() {
-    var all = S.activity || [];
-    var filtered = _getFilteredActivity();
-    var html = '<div class="vpm-view"><div class="vpm-view-header"><div><h2 class="vpm-view-title">' + icon('clock-rotate-left') + ' Activity</h2>';
-    html += '<p class="vpm-view-subtitle">' + all.length + ' entries</p></div>';
-    html += '<div class="vpm-btn-row">';
-    html += '<button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="export-activity">' + icon('download') + ' Export</button>';
-    if (all.length) html += '<button class="vpm-btn vpm-btn-danger vpm-btn-sm" data-action="clear-activity">' + icon('trash') + ' Clear</button>';
-    html += '</div></div>';
-
-    // Filters
-    html += '<div class="vpm-activity-filters">';
-    html += '<input class="vpm-input vpm-input-sm" style="flex:1;max-width:280px" data-action="filter-activity" placeholder="Search activity\u2026" value="' + esc(S.activityFilter.search || '') + '">';
-    html += '<select class="vpm-select vpm-select-sm" data-action="filter-activity-type"><option value="">All types</option>';
-    for (var atId in Constants.ACTIVITY_TYPES) html += '<option value="' + atId + '"' + (S.activityFilter.type === atId ? ' selected' : '') + '>' + esc(Constants.ACTIVITY_TYPES[atId].label) + '</option>';
-    html += '</select>';
-    if (S.activityFilter.search || S.activityFilter.type) {
-      html += '<button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="clear-activity-filters">' + icon('xmark') + ' Clear Filters</button>';
-      html += '<span class="vpm-text-xs vpm-text-muted">' + filtered.length + ' of ' + all.length + '</span>';
-    }
-    html += '</div>';
-
-    // Empty state
-    if (!filtered.length) {
-      html += '<div class="vpm-empty-hero"><div class="vpm-empty-hero-icon">' + icon('clock-rotate-left') + '</div><h3>No Activity</h3>';
-      html += '<p>' + (all.length ? 'No entries match your filters.' : 'Actions will appear here as you work.') + '</p></div>';
-      html += '</div>';
-      return html;
-    }
-
-    // Group by date
-    var groups = _groupByDate(filtered);
-    for (var gi = 0; gi < groups.length; gi++) {
-      var g = groups[gi];
-      html += '<div class="vpm-activity-group">';
-      html += '<div class="vpm-activity-group-head">' + esc(g.label) + ' <span class="vpm-text-xs vpm-text-muted">(' + g.items.length + ')</span></div>';
-      for (var ai = 0; ai < g.items.length; ai++) {
-        var act = g.items[ai];
-        var at = Constants.ACTIVITY_TYPES[act.type] || { label: act.type, icon: 'circle', color: '#6b7280' };
-        html += '<div class="vpm-activity-item">';
-        html += '<div class="vpm-activity-icon" style="background:' + (at.color || '#6b7280') + '14;color:' + (at.color || '#6b7280') + '">' + icon(at.icon) + '</div>';
-        html += '<div class="vpm-activity-body">';
-        html += '<div class="vpm-activity-desc">' + esc(act.description || '') + '</div>';
-        html += '<div class="vpm-activity-meta">';
-        html += '<span>' + esc(formatRelativeTime(act.timestamp)) + '</span>';
-        if (act.user_name) html += '<span>\u00B7 ' + esc(act.user_name) + '</span>';
-        html += '<span class="vpm-activity-type-tag" style="color:' + (at.color || '#6b7280') + '">' + esc(at.label) + '</span>';
-        html += '</div></div></div>';
-      }
-      html += '</div>';
-    }
-
-    html += '</div>';
-    return html;
-  }
-
-  function _getFilteredActivity() {
-    var all = S.activity || [];
-    var search = (S.activityFilter.search || '').toLowerCase();
-    var typeF = S.activityFilter.type || '';
-    return all.filter(function(a) {
-      if (typeF && a.type !== typeF) return false;
-      if (search && (a.description || '').toLowerCase().indexOf(search) === -1 && (a.type || '').toLowerCase().indexOf(search) === -1) return false;
-      return true;
-    });
-  }
-
-  function _groupByDate(items) {
-    var now = new Date();
-    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    var yesterday = today - 86400000;
-    var weekAgo = today - 7 * 86400000;
-    var groups = { today: { label: 'Today', items: [] }, yesterday: { label: 'Yesterday', items: [] }, week: { label: 'This Week', items: [] }, older: { label: 'Older', items: [] } };
-    for (var i = 0; i < items.length; i++) {
-      var ts = new Date(items[i].timestamp || 0).getTime();
-      if (ts >= today) groups.today.items.push(items[i]);
-      else if (ts >= yesterday) groups.yesterday.items.push(items[i]);
-      else if (ts >= weekAgo) groups.week.items.push(items[i]);
-      else groups.older.items.push(items[i]);
-    }
-    var result = [];
-    if (groups.today.items.length) result.push(groups.today);
-    if (groups.yesterday.items.length) result.push(groups.yesterday);
-    if (groups.week.items.length) result.push(groups.week);
-    if (groups.older.items.length) result.push(groups.older);
-    return result;
-  }
-
 
   // ============================================================
   // SECTION 19: EVENT HANDLERS
