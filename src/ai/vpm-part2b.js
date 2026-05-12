@@ -136,6 +136,27 @@
   // SECTION 6: AI — IDEA ANALYSIS
   // ============================================================
 
+  // Signature of the Start preferences that shape research output.
+  // Stored on research.prefs_signature at generation time; compared on each
+  // research-view render to detect "Preferences changed since generation".
+  function _computeResearchPrefsSignature() {
+    var p = (S.data.start && S.data.start.preferences) || {};
+    var v = S.data.video || {};
+    var sig = {
+      language: p.language || '',
+      platforms: (p.platforms || [p.platform || '']).slice().sort().join(','),
+      aspect_ratio: p.aspect_ratio || '',
+      target_duration: p.target_duration || 0,
+      audio_mode: p.audio_mode || '',
+      production_mode: p.production_mode || '',
+      presenter_preference: p.presenter_preference || '',
+      video_style: p.video_style || '',
+      tone: p.tone || '',
+      target_audience: v.target_audience || ''
+    };
+    return JSON.stringify(sig);
+  }
+
   // Extract video preferences from free-text input (or imported plan).
   // Calls the LLM with a strict JSON schema, then hands the parsed object
   // back to onResult so the caller can show a diff modal before applying.
@@ -274,6 +295,8 @@
         if (r.trending_angles) S.data.research.trending_angles = _ensureString(r.trending_angles);
         if (r.content_strategy) S.data.research.content_strategy = _ensureString(r.content_strategy);
         S.data.research.generated = true; S.data.research.generated_at = new Date().toISOString();
+        // Snapshot which Start preferences shaped this brief — used by the Research view to flag staleness.
+        S.data.research.prefs_signature = _computeResearchPrefsSignature();
         logActivity('research_generated', 'AI research brief generated');
         if (snapshot) snapshot('Research'); buildMaps(); syncToTextarea(); render();
         toast('Research brief generated!', 'success');
@@ -1965,6 +1988,7 @@
   // ============================================================
 
   window._vpmExtractPreferencesFromText = extractPreferencesFromText;
+  window._vpmComputeResearchPrefsSignature = _computeResearchPrefsSignature;
   window._vpmPart2B = {
     LLMService: LLMService, BrandService: BrandService,
     isAIConfigured: LLMService.isConfigured.bind(LLMService),

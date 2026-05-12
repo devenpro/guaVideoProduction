@@ -1,4 +1,4 @@
-/*! VPM CSS bundle — built 2026-05-12T06:25:21.738Z */
+/*! VPM CSS bundle — built 2026-05-12T06:26:47.561Z */
 
 /* ===== src/styles/vpm-part1.css ===== */
 /**
@@ -651,6 +651,35 @@ body.vpm-active .region-breadcrumb, body.vpm-active .page-title-wrapper, body.vp
 /* ============================================================
    S9B: RESEARCH VIEW
    ============================================================ */
+.vpm-research-source-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: var(--vpm-space-3);
+  padding: 10px 12px;
+  background: var(--vpm-gray-50);
+  border: 1px solid var(--vpm-border-light);
+  border-radius: var(--vpm-radius-md);
+}
+.vpm-research-source-chips-label { font-size: var(--vpm-font-xs); font-weight: 700; color: var(--vpm-text-secondary); margin-right: 4px; }
+.vpm-research-source-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: var(--vpm-white);
+  border: 1px solid var(--vpm-border);
+  border-radius: 999px;
+  font-size: var(--vpm-font-xs);
+  color: var(--vpm-text-primary);
+  cursor: pointer;
+  transition: all var(--vpm-transition-fast);
+}
+.vpm-research-source-chip:hover { border-color: var(--vpm-primary); color: var(--vpm-primary); background: var(--vpm-primary-subtle); }
+.vpm-research-source-chip-label { color: var(--vpm-text-muted); font-weight: 600; }
+.vpm-info-banner-warn { background: #fff7ed; border-left: 4px solid #f59e0b; color: #7c2d12; }
+
 .vpm-research-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--vpm-space-3); margin-bottom: var(--vpm-space-4); }
 .vpm-research-panel { background: var(--vpm-white); border: 1px solid var(--vpm-border-light); border-top: 3px solid var(--vpm-primary); border-radius: var(--vpm-radius-lg); padding: var(--vpm-space-4); transition: border-color var(--vpm-transition-fast), box-shadow var(--vpm-transition-fast); }
 .vpm-research-panel:hover { box-shadow: var(--vpm-shadow-sm); }

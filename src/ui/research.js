@@ -27,13 +27,51 @@
   function renderResearchFull() {
     var res = S.data.research || {};
     var sources = res.sources || [];
+    var prefs = (S.data.start && S.data.start.preferences) || {};
+    var video = S.data.video || {};
 
     var html = '<div class="vpm-view"><div class="vpm-view-header"><div><h2 class="vpm-view-title">' + icon('magnifying-glass') + ' Research</h2>';
     html += '<p class="vpm-view-subtitle">AI-powered content research for better videos</p></div>';
     html += '<div class="vpm-btn-row">';
-    html += '<button class="vpm-btn vpm-btn-ai" data-action="ai-generate-research">' + icon('sparkles') + ' Generate Research Brief</button>';
+    html += '<button class="vpm-btn vpm-btn-ai" data-action="ai-generate-research">' + icon('sparkles') + ' ' + (res.generated ? 'Regenerate Brief' : 'Generate Research Brief') + '</button>';
     if (res.generated) html += '<span class="vpm-text-success vpm-text-sm">' + icon('circle-check') + ' Generated ' + formatRelativeTime(res.generated_at || '') + '</span>';
     html += '</div></div>';
+
+    // Chip strip: Start inputs feeding the brief — click to jump back to Start.
+    var chips = [];
+    if (video.target_audience) chips.push({ icon: 'users', label: 'Audience', value: video.target_audience });
+    var plats = prefs.platforms || (prefs.platform ? [prefs.platform] : []);
+    if (plats.length) {
+      var pls = plats.map(function(p) { var def = window._vpmConstants.PLATFORMS[p]; return def ? def.label : p; }).join(' · ');
+      chips.push({ icon: 'share-nodes', label: 'Platform', value: pls });
+    }
+    if (prefs.tone) { var tdef = window._vpmConstants.TONES[prefs.tone]; chips.push({ icon: 'face-smile', label: 'Tone', value: tdef ? tdef.label : prefs.tone }); }
+    if (prefs.target_duration) chips.push({ icon: 'clock', label: 'Duration', value: prefs.target_duration + 's' });
+    if (prefs.video_style) { var vdef = window._vpmConstants.VIDEO_STYLES[prefs.video_style]; chips.push({ icon: 'palette', label: 'Style', value: vdef ? vdef.label : prefs.video_style }); }
+    if (prefs.language) { var ldef = window._vpmConstants.LANGUAGES[prefs.language]; chips.push({ icon: 'file-lines', label: 'Language', value: ldef ? ldef.label : prefs.language }); }
+
+    if (chips.length) {
+      html += '<div class="vpm-research-source-chips" title="These Start inputs shape the AI research brief — click any chip to revise.">';
+      html += '<span class="vpm-research-source-chips-label">' + icon('sliders') + ' Brief inputs:</span>';
+      for (var ci = 0; ci < chips.length; ci++) {
+        var c = chips[ci];
+        html += '<button class="vpm-research-source-chip" data-action="navigate" data-stage="start" title="Edit ' + esc(c.label) + ' in Start">';
+        html += icon(c.icon) + ' <span class="vpm-research-source-chip-label">' + esc(c.label) + ':</span> ' + esc(c.value);
+        html += '</button>';
+      }
+      html += '</div>';
+    }
+
+    // Stale-banner: Start preferences changed since this brief was generated.
+    if (res.generated && window._vpmComputeResearchPrefsSignature) {
+      var currentSig = window._vpmComputeResearchPrefsSignature();
+      if (res.prefs_signature && res.prefs_signature !== currentSig) {
+        html += '<div class="vpm-info-banner vpm-info-banner-warn" style="display:flex;align-items:center;gap:10px">' + icon('triangle-exclamation');
+        html += ' <span><strong>Start preferences changed</strong> after this brief was generated — the research may no longer reflect your current inputs.</span>';
+        html += '<button class="vpm-btn vpm-btn-ai vpm-btn-sm" data-action="ai-generate-research" style="margin-left:auto">' + icon('sparkles') + ' Regenerate</button>';
+        html += '</div>';
+      }
+    }
 
     // Info banner if no idea yet
     if (!S.data.start.raw_input && !res.generated) {
