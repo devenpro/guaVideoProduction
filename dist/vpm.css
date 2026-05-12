@@ -1,4 +1,4 @@
-/*! VPM CSS bundle — built 2026-05-12T06:08:39.200Z */
+/*! VPM CSS bundle — built 2026-05-12T06:21:19.120Z */
 
 /* ===== src/styles/vpm-part1.css ===== */
 /**
@@ -457,6 +457,45 @@ body.vpm-active .region-breadcrumb, body.vpm-active .page-title-wrapper, body.vp
 .vpm-start-prefs { margin-bottom: var(--vpm-space-3); }
 .vpm-prefs-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--vpm-space-4); }
 .vpm-pref-group { }
+
+/* Start — Advanced options group (collapsible panels) */
+.vpm-start-advanced-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: var(--vpm-space-3) 2px 8px;
+  font-weight: 700;
+  color: var(--vpm-text-primary);
+}
+.vpm-adv-group { padding: 0; margin-bottom: var(--vpm-space-2); overflow: hidden; }
+.vpm-adv-group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--vpm-space-2);
+  padding: var(--vpm-space-2) var(--vpm-space-3);
+  cursor: pointer;
+  user-select: none;
+  transition: background var(--vpm-transition-fast);
+}
+.vpm-adv-group-head:hover { background: var(--vpm-gray-50); }
+.vpm-adv-group-title { font-weight: 700; color: var(--vpm-text-primary); flex-shrink: 0; }
+.vpm-adv-group-summary {
+  font-size: var(--vpm-font-xs);
+  color: var(--vpm-text-muted);
+  margin-left: auto;
+  margin-right: var(--vpm-space-2);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+.vpm-adv-group-chev { color: var(--vpm-text-muted); flex-shrink: 0; }
+.vpm-adv-group-open .vpm-adv-group-head { background: var(--vpm-gray-50); border-bottom: 1px solid var(--vpm-border); }
+.vpm-adv-group-body { padding: var(--vpm-space-3); }
+@media (max-width: 640px) {
+  .vpm-adv-group-summary { display: none; }
+}
 .vpm-pref-full { grid-column: 1 / -1; }
 .vpm-pref-label { font-size: var(--vpm-font-xs); font-weight: 600; color: var(--vpm-text-secondary); margin-bottom: var(--vpm-space-2); display: flex; align-items: center; gap: var(--vpm-space-1); text-transform: uppercase; letter-spacing: 0.04em; }
 

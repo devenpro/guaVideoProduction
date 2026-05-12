@@ -1,4 +1,4 @@
-/*! VPM JS bundle — built 2026-05-12T06:08:39.200Z */
+/*! VPM JS bundle — built 2026-05-12T06:21:19.120Z */
 
 /* ===== src/core/constants.js ===== */
 /**
@@ -3322,26 +3322,14 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     html += '<div class="vpm-mode-card-stages">Start \u2192 Research \u2192 Blueprint \u2192 Script \u2192 Studio \u2192 Clips \u2192 Publish</div></div>';
     html += '</div></div>';
 
-    // --- Preferences Panel ---
+    // --- Primary Preferences (9 fields, always expanded) ---
     html += '<div class="vpm-panel vpm-start-prefs">';
-    html += '<div class="vpm-panel-title">' + icon('gears') + ' Video Preferences</div>';
+    html += '<div class="vpm-panel-title">' + icon('gears') + ' Primary Preferences <span class="vpm-text-muted vpm-text-xs" style="font-weight:400">— the choices that shape every clip</span></div>';
     html += '<div class="vpm-prefs-grid">';
 
     // Language
     html += _prefGroup('Language', 'file-lines', false,
       _chipBar(Constants.LANGUAGES, prefs.language || 'english', 'preferences.language'));
-
-    // Audio Mode (expanded cards)
-    html += _prefGroup('Audio Mode', 'microphone-lines', true, _audioModeCards(prefs.audio_mode || 'ai-audio-with-video'));
-
-    // Voice Profile (conditional)
-    var audioModeDef = Constants.AUDIO_MODES[prefs.audio_mode || 'ai-audio-with-video'] || {};
-    if (audioModeDef.supportsVoiceProfile) {
-      html += _prefGroup('Voice Profile', 'user', true, _voiceProfileEditor(prefs.voice_profile || {}));
-    }
-
-    // Video Style (NEW)
-    html += _prefGroup('Video Style', 'palette', true, _videoStyleCards(prefs.video_style || ''));
 
     // Platform — multi-select
     html += _prefGroup('Target Platforms', 'share-nodes', true, _platformMultiSelect(prefs.platforms || [prefs.platform || 'youtube']));
@@ -3359,58 +3347,81 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     html += _prefGroup('Presenter Preference', 'user', true,
       _chipBar(Constants.PRESENTER_PREFS, prefs.presenter_preference || 'ai-only', 'preferences.presenter_preference'));
 
+    // Audio Mode (expanded cards)
+    html += _prefGroup('Audio Mode', 'microphone-lines', true, _audioModeCards(prefs.audio_mode || 'ai-audio-with-video'));
+
+    // Video Style
+    html += _prefGroup('Video Style', 'palette', true, _videoStyleCards(prefs.video_style || ''));
+
+    // Tone (drives narrative voice for AI script + research)
+    html += _prefGroup('Tone', 'face-smile', true,
+      _chipBar(Constants.TONES, prefs.tone || 'friendly', 'preferences.tone'));
+
     html += '</div></div>';
 
-    // --- Model Selection ---
-    html += _renderModelSelectionPanel(prefs);
+    // --- Advanced Options header + collapsible groups ---
+    html += '<div class="vpm-start-advanced-header"><span>' + icon('sliders') + ' Advanced Options</span>';
+    html += '<span class="vpm-text-muted vpm-text-xs" style="margin-left:auto">Defaults work for most videos \u2014 expand to fine-tune</span></div>';
 
-    // --- Seedance Audio Direction (when Seedance is primary) ---
+    // 1) Voice & TTS (only when audio mode supports voice profile)
+    var audioModeDef = Constants.AUDIO_MODES[prefs.audio_mode || 'ai-audio-with-video'] || {};
+    if (audioModeDef.supportsVoiceProfile) {
+      var vp = prefs.voice_profile || {};
+      var vpSummary = [];
+      if (vp.gender) vpSummary.push(Constants.VOICE_GENDERS[vp.gender] || vp.gender);
+      if (vp.style) vpSummary.push(Constants.VOICE_STYLES[vp.style] || vp.style);
+      if (vp.accent) vpSummary.push(Constants.VOICE_ACCENTS[vp.accent] || vp.accent);
+      html += _advancedGroup('voice', 'Voice & TTS', 'microphone',
+        vpSummary.length ? esc(vpSummary.join(' \u00b7 ')) : 'No voice profile set',
+        _voiceProfileEditor(vp));
+    }
+
+    // 2) AI Models (+ Seedance audio direction when applicable)
+    var modelsContent = _renderModelSelectionPanel(prefs);
     var _primaryVMPref = prefs.primary_video_model || (S.meta.aiPreferences || {}).videoModel || 'seedance';
-    if (_primaryVMPref === 'seedance') {
-      html += _renderSeedanceAudioDirectionPanel(prefs);
-    }
+    if (_primaryVMPref === 'seedance') modelsContent += _renderSeedanceAudioDirectionPanel(prefs);
+    var modelLabel = (Constants.VIDEO_MODELS && Constants.VIDEO_MODELS[_primaryVMPref] && Constants.VIDEO_MODELS[_primaryVMPref].label) || _primaryVMPref;
+    html += _advancedGroup('models', 'AI Models', 'wand-magic-sparkles',
+      'Primary video: ' + esc(modelLabel) + (_primaryVMPref === 'seedance' ? ' \u2014 Seedance audio options included' : ''),
+      modelsContent);
 
-    // --- Brand Library Selection ---
-    html += _renderBrandLibrarySelectionPanel();
+    // 3) Brand Library
+    html += _advancedGroup('brand', 'Brand Library', 'palette',
+      'Pick which brand looks, environments and scenes are available for this video',
+      _renderBrandLibrarySelectionPanel());
 
-    // --- Template Clips Option ---
+    // 4) Clips & Templates
     var _inclTpl = prefs.include_templates;
-    html += '<div class="vpm-panel" style="padding:var(--vpm-space-3)">';
-    html += '<div class="vpm-flex-between">';
-    html += '<div><strong class="vpm-text-sm">' + icon('layer-group') + ' Include Template Clips</strong>';
-    html += '<div class="vpm-text-xs vpm-text-muted">Auto-insert branded intro, outro & chapter titles when generating clips</div></div>';
-    html += '<label class="vpm-toggle-switch"><input type="checkbox" data-action="toggle-include-templates"' + (_inclTpl !== false ? ' checked' : '') + '> <span class="vpm-text-sm">' + (_inclTpl !== false ? 'On' : 'Off') + '</span></label>';
-    html += '</div></div>';
-
-    // --- Clip Type Selection (collapsible) ---
-    html += '<div class="vpm-panel">';
-    html += '<div class="vpm-panel-title" data-action="toggle-clip-types" style="cursor:pointer">' + icon('film') + ' Clip Types ';
-    html += '<span class="vpm-text-muted vpm-text-xs">(optional \u2014 auto-selected from production mode if skipped)</span>';
     var selectedTypes = st.selected_clip_types || [];
-    if (selectedTypes.length) html += ' ' + badge(selectedTypes.length + ' selected', '#0d904f');
-    html += '<span style="margin-left:auto">' + icon(S._clipTypesExpanded ? 'chevron-up' : 'chevron-down') + '</span></div>';
-    if (S._clipTypesExpanded) {
-      var tracks = { ai: [], 'non-ai': [], template: [] };
-      for (var ctk in Constants.CLIP_TYPES) tracks[Constants.CLIP_TYPES[ctk].track].push(ctk);
-      var trackLabels = { ai: 'AI Track', 'non-ai': 'Non-AI Track', template: 'Template Track' };
-      for (var trk in trackLabels) {
-        html += '<div style="margin-top:10px"><div class="vpm-text-label" style="margin-bottom:6px">' + esc(trackLabels[trk]) + '</div>';
-        html += '<div class="vpm-chip-bar" style="flex-wrap:wrap">';
-        for (var ti = 0; ti < tracks[trk].length; ti++) {
-          var ctKey = tracks[trk][ti];
-          var ct = Constants.CLIP_TYPES[ctKey];
-          var isSelected = selectedTypes.indexOf(ctKey) >= 0;
-          html += '<button class="vpm-chip' + (isSelected ? ' vpm-chip-active' : '') + '" data-action="toggle-clip-type" data-value="' + esc(ctKey) + '" style="border-color:' + ct.color + '">';
-          html += icon(ct.icon) + ' ' + esc(ct.label) + '</button>';
-        }
-        html += '</div></div>';
+    var clipsSummary = (_inclTpl !== false ? 'Templates on' : 'Templates off');
+    clipsSummary += selectedTypes.length ? ' \u00b7 ' + selectedTypes.length + ' clip types pinned' : ' \u00b7 Auto-pick from production mode';
+    var clipsContent = '';
+    clipsContent += '<div class="vpm-flex-between" style="padding:8px 0">';
+    clipsContent += '<div><strong class="vpm-text-sm">' + icon('layer-group') + ' Include Template Clips</strong>';
+    clipsContent += '<div class="vpm-text-xs vpm-text-muted">Auto-insert branded intro, outro & chapter titles when generating clips</div></div>';
+    clipsContent += '<label class="vpm-toggle-switch"><input type="checkbox" data-action="toggle-include-templates"' + (_inclTpl !== false ? ' checked' : '') + '> <span class="vpm-text-sm">' + (_inclTpl !== false ? 'On' : 'Off') + '</span></label>';
+    clipsContent += '</div>';
+    clipsContent += '<div class="vpm-text-label" style="margin-top:12px;margin-bottom:6px">' + icon('film') + ' Clip Types <span class="vpm-text-muted vpm-text-xs">(optional \u2014 auto-selected from production mode if skipped)</span></div>';
+    var tracks = { ai: [], 'non-ai': [], template: [] };
+    for (var ctk in Constants.CLIP_TYPES) tracks[Constants.CLIP_TYPES[ctk].track].push(ctk);
+    var trackLabels = { ai: 'AI Track', 'non-ai': 'Non-AI Track', template: 'Template Track' };
+    for (var trk in trackLabels) {
+      clipsContent += '<div style="margin-top:8px"><div class="vpm-text-xs vpm-text-muted" style="margin-bottom:4px">' + esc(trackLabels[trk]) + '</div>';
+      clipsContent += '<div class="vpm-chip-bar" style="flex-wrap:wrap">';
+      for (var ti = 0; ti < tracks[trk].length; ti++) {
+        var ctKey = tracks[trk][ti];
+        var ct = Constants.CLIP_TYPES[ctKey];
+        var isSelected = selectedTypes.indexOf(ctKey) >= 0;
+        clipsContent += '<button class="vpm-chip' + (isSelected ? ' vpm-chip-active' : '') + '" data-action="toggle-clip-type" data-value="' + esc(ctKey) + '" style="border-color:' + ct.color + '">';
+        clipsContent += icon(ct.icon) + ' ' + esc(ct.label) + '</button>';
       }
-      html += '<div style="margin-top:10px">';
-      html += '<button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="auto-select-clip-types">' + icon('sparkles') + ' Auto-select from Production Mode</button>';
-      if (selectedTypes.length) html += ' <button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="clear-clip-types">' + icon('xmark') + ' Clear All</button>';
-      html += '</div>';
+      clipsContent += '</div></div>';
     }
-    html += '</div>';
+    clipsContent += '<div style="margin-top:10px">';
+    clipsContent += '<button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="auto-select-clip-types">' + icon('sparkles') + ' Auto-select from Production Mode</button>';
+    if (selectedTypes.length) clipsContent += ' <button class="vpm-btn vpm-btn-outline vpm-btn-sm" data-action="clear-clip-types">' + icon('xmark') + ' Clear All</button>';
+    clipsContent += '</div>';
+    html += _advancedGroup('clips', 'Clips & Templates', 'film', clipsSummary, clipsContent);
 
     // Navigation
     html += '<div class="vpm-start-nav-buttons">';
@@ -3419,6 +3430,23 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     html += '</div>';
 
     return html;
+  }
+
+  // Render a collapsible Advanced group. Open state persists in S.meta._ui.advanced_panels[key].
+  function _advancedGroup(key, label, iconName, summary, contentHtml) {
+    var ui = (S.meta._ui = S.meta._ui || {});
+    var panels = (ui.advanced_panels = ui.advanced_panels || {});
+    var open = !!panels[key];
+    var h = '';
+    h += '<div class="vpm-panel vpm-adv-group' + (open ? ' vpm-adv-group-open' : '') + '">';
+    h += '<div class="vpm-adv-group-head" data-action="toggle-adv-panel" data-key="' + esc(key) + '">';
+    h += '<span class="vpm-adv-group-title">' + icon(iconName) + ' ' + esc(label) + '</span>';
+    h += '<span class="vpm-adv-group-summary">' + summary + '</span>';
+    h += '<span class="vpm-adv-group-chev">' + icon(open ? 'chevron-up' : 'chevron-down') + '</span>';
+    h += '</div>';
+    if (open) h += '<div class="vpm-adv-group-body">' + contentHtml + '</div>';
+    h += '</div>';
+    return h;
   }
 
   // --- Step 3: Review & Launch ---
@@ -6398,6 +6426,17 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
       render();
     });
 
+    // Toggle Advanced collapsible group (Voice & TTS / AI Models / Brand Library / Clips & Templates)
+    $(document).off('click.vpm2a-tgadv').on('click.vpm2a-tgadv', '[data-action="toggle-adv-panel"]', function(e) {
+      e.preventDefault();
+      var key = $(this).data('key'); if (!key) return;
+      var ui = S.meta._ui = S.meta._ui || {};
+      var panels = ui.advanced_panels = ui.advanced_panels || {};
+      panels[key] = !panels[key];
+      syncToTextarea();
+      render();
+    });
+
     $(document).off('click.vpm2a-tct').on('click.vpm2a-tct', '[data-action="toggle-clip-type"]', function(e) {
       e.preventDefault();
       var val = $(this).data('value');
@@ -6595,6 +6634,7 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
       S.data.video.production_mode = prefs.production_mode || 'full-ai';
       S.data.video.presenter_preference = prefs.presenter_preference || 'ai-only';
       S.data.video.video_style = prefs.video_style || '';
+      S.data.video.tone = prefs.tone || S.data.video.tone || 'friendly';
       S.data.video.audio_mode = prefs.audio_mode || 'ai-audio-with-video';
       S.data.video.voice_profile = prefs.voice_profile ? JSON.parse(JSON.stringify(prefs.voice_profile)) : null;
       S.data.video.selected_video_models = prefs.selected_video_models ? prefs.selected_video_models.slice() : [];
