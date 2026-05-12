@@ -1,4 +1,4 @@
-/*! VPM JS bundle — built 2026-05-12T06:29:24.870Z */
+/*! VPM JS bundle — built 2026-05-12T06:31:31.237Z */
 
 /* ===== src/core/constants.js ===== */
 /**
@@ -840,6 +840,17 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
         // Delay so toast container is fully mounted
         setTimeout(function() { try { toast('Resumed at ' + lbl, 'info', 3000); } catch (_te) {} }, 400);
       }
+
+      // First-load keyboard shortcuts hint (one-time per project)
+      if (S.meta._ui && !S.meta._ui.shortcut_hint_shown) {
+        setTimeout(function() {
+          try {
+            toast('Tip: press ? anytime for keyboard shortcuts · 1–7 jumps stages · Ctrl+S saves', 'info', 6000);
+            S.meta._ui.shortcut_hint_shown = true;
+            syncToTextarea();
+          } catch (_te2) {}
+        }, _resumed ? 4000 : 1200);
+      }
     } catch (e) {
       console.error('[VPM] Init error:', e.message, e.stack);
       S._initializing = false;
@@ -1579,6 +1590,17 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     $sidebar.toggleClass('vpm-sidebar-collapsed', !!collapsed);
     // Update collapse button icon
     $sidebar.find('.vpm-sidebar-collapse-btn').attr('title', collapsed ? 'Expand' : 'Collapse').html(icon(collapsed ? 'chevron-right' : 'chevron-left'));
+    // Refresh overall project progress strip
+    var $prog = $sidebar.find('.vpm-sidebar-progress');
+    if ($prog.length) {
+      var _doneCnt2 = 0;
+      for (var _po2 = 0; _po2 < stageOrder.length; _po2++) { if (isStageComplete(stageOrder[_po2])) _doneCnt2++; }
+      var _curIdx2 = stageOrder.indexOf(S.currentStage); if (_curIdx2 === -1) _curIdx2 = 0;
+      var _pct2 = Math.round((_doneCnt2 / stageOrder.length) * 100);
+      $prog.find('.vpm-sidebar-progress-label').html('<span>Stage ' + (_curIdx2 + 1) + '/' + stageOrder.length + '</span><span class="vpm-text-muted">' + _pct2 + '%</span>');
+      $prog.find('.vpm-sidebar-progress-fill').css('width', _pct2 + '%');
+      $prog.attr('title', _doneCnt2 + ' of ' + stageOrder.length + ' stages complete');
+    }
     // Rebuild nav content
     var $nav = $sidebar.find('.vpm-nav');
     if (!$nav.length) return;
@@ -1756,6 +1778,17 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     html += '<div class="vpm-sidebar-brand">' + icon('film') + '<span class="vpm-sidebar-brand-text">VPM</span></div>';
     html += '<button class="vpm-sidebar-collapse-btn" data-action="toggle-sidebar-collapse" title="' + (collapsed ? 'Expand' : 'Collapse') + '">' + icon(collapsed ? 'chevron-right' : 'chevron-left') + '</button>';
     html += '</div>';
+
+    // Overall project progress strip
+    var _doneCnt = 0;
+    for (var _po = 0; _po < stageOrder.length; _po++) { if (isStageComplete(stageOrder[_po])) _doneCnt++; }
+    var _curIdx = stageOrder.indexOf(S.currentStage); if (_curIdx === -1) _curIdx = 0;
+    var _pct = Math.round((_doneCnt / stageOrder.length) * 100);
+    html += '<div class="vpm-sidebar-progress" title="' + _doneCnt + ' of ' + stageOrder.length + ' stages complete">';
+    html += '<div class="vpm-sidebar-progress-label"><span>Stage ' + (_curIdx + 1) + '/' + stageOrder.length + '</span><span class="vpm-text-muted">' + _pct + '%</span></div>';
+    html += '<div class="vpm-sidebar-progress-track"><div class="vpm-sidebar-progress-fill" style="width:' + _pct + '%"></div></div>';
+    html += '</div>';
+
     html += '<nav class="vpm-nav">';
     html += '<div class="vpm-nav-label"><span class="vpm-nav-label-text">STAGES</span></div>';
     var _visited2 = (S.meta && S.meta._ui && Array.isArray(S.meta._ui.visited_stages)) ? S.meta._ui.visited_stages : [];
@@ -1823,7 +1856,7 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
     _updateLastSaved();
   }
 
-  function render() { _captureUIState(); _refreshSidebarNav(); _refreshCoachPanel(); renderCurrentView(); }
+  function render() { _captureUIState(); _refreshSidebarNav(); _refreshCoachPanel(); renderCurrentView(); _updateLastSaved(); }
 
   // ============================================================
   // COACH PANEL — stage-aware guide that lives in the right rail
@@ -2348,8 +2381,14 @@ function _getEntityPrimaryImage(entity) { if (!entity || !entity.reference_image
   function _updateLastSaved() {
     var $el = $('#vpmLastSaved');
     if (!$el.length) return;
-    if (S.lastSaved) $el.html(icon('circle-check') + ' ' + formatRelativeTime(S.lastSaved));
-    else if (S.dirty) $el.html(icon('circle') + ' Unsaved');
+    $el.removeClass('vpm-last-saved-dirty vpm-last-saved-clean vpm-last-saved-idle');
+    if (S.dirty) {
+      $el.addClass('vpm-last-saved-dirty').attr('title', 'You have unsaved changes — click Save to persist').html(icon('circle-dot') + ' Unsaved');
+    } else if (S.lastSaved) {
+      $el.addClass('vpm-last-saved-clean').attr('title', 'Saved at ' + formatDate(S.lastSaved)).html(icon('circle-check') + ' Saved ' + formatRelativeTime(S.lastSaved));
+    } else {
+      $el.addClass('vpm-last-saved-idle').attr('title', '').html('');
+    }
   }
 
   // Undo/redo placeholder — wired up in Part 2A
